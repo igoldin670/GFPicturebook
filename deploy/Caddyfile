@@ -1,0 +1,10 @@
+# Default: Tailscale Serve terminates HTTPS and forwards to this loopback-only port.
+# Do not publish this HTTP listener to the internet or a LAN.
+:80 {
+    request_body {
+        max_size 64KB
+    }
+    reverse_proxy web:8000 {
+        header_up X-Forwarded-Proto https
+    }
+}

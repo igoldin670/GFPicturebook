@@ -1,0 +1,51 @@
+name: our-little-album
+x-app: &app
+  image: our-little-album:local
+  build: .
+  env_file: .env
+  environment:
+    POSTGRES_HOST: db
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - ${DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 15
+  migrate:
+    <<: *app
+    command: [python, manage.py, migrate, --noinput]
+    depends_on:
+      db: {condition: service_healthy}
+  web:
+    <<: *app
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    volumes:
+      - ${DATA_DIR:-./data}/photos:/photos:ro
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      # Internal container traffic must not use an external HTTP proxy.
+      NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1},web,db,proxy"
+    ports: ["127.0.0.1:8080:80"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DATA_DIR:-./data}/caddy-data:/data
+      - ${DATA_DIR:-./data}/caddy-config:/config
+    depends_on: [web]

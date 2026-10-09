@@ -1,0 +1,11 @@
+.git
+.env
+.venv
+data
+backups
+frontend/node_modules
+frontend/dist
+backend/local.sqlite3
+**/__pycache__
+backend/staticfiles
+**/*.tsbuildinfo
