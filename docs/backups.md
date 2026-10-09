@@ -1,6 +1,6 @@
 # Backup and restore design
 
-This is the design for increment 3. **No automatic backups are running in increment 1.** BackupRun is only the status schema. Do not treat an empty status table, a local copy, or a successful database dump as a verified full backup.
+This is the design for increment 3. **No automatic backups are running in increment 2 either.** BackupRun is only the status schema. Do not treat an empty status table, a local copy, or a successful database dump as a verified full backup.
 
 ## 3–2–1 plan
 

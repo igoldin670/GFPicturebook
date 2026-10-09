@@ -22,7 +22,7 @@ flowchart LR
   Backup --> Restic[Independent local and offsite repositories]
 ```
 
-Worker and backup services are planned for later increments. They do not run in the current Compose file.
+The worker is implemented in increment 2. The backup service remains planned for increment 3. See `photo-uploads.md` for current limits and upgrade commands.
 
 ## Database design
 
@@ -43,7 +43,7 @@ Django models and the first migration are executable schema definitions. Both us
 
 User deletion is protected while uploads/albums refer to them; deactivate accounts instead. Deleting an album removes membership rows, not photos. Deleting a cover clears that reference. Hard photo deletion is not exposed in this increment. Validate that an album cover belongs to its album in the future album service. Coordinate all photo mutations through explicit service functions, including admin actions, rather than letting generic admin edits bypass invariants.
 
-Indexes include the visible-photo `(display_date DESC, id DESC)` partial index, upload time, original checksum, album ordering, and job availability. Unique constraints prevent duplicate memberships/favorites; GPS and orientation ranges have database checks. Foreign keys have indexes. Later search work should add PostgreSQL full-text or trigram indexes for captions/location labels, based on actual query plans. Filter a year/month/day using half-open date ranges, not SQL functions wrapped around the indexed column. Use keyset pagination (date + UUID) with 48 results per request, never return the entire library to React.
+Indexes include the visible-photo `(display_date DESC, id DESC)` partial index, upload time, original checksum, album ordering, and job availability. Unique constraints prevent duplicate memberships/favorites; GPS and orientation ranges have database checks. Foreign keys have indexes. Later search work should add PostgreSQL full-text or trigram indexes for captions/location labels, based on actual query plans. Filter a year/month/day using half-open date ranges, not SQL functions wrapped around the indexed column. Use keyset pagination (date + UUID) with 48 results per request, never return the entire library to React. This cursor query is implemented in increment 2; indexed caption/location search is still planned.
 
 ## Dates are more than a timestamp
 
@@ -51,14 +51,14 @@ Prefer EXIF DateTimeOriginal + SubSecTimeOriginal + OffsetTimeOriginal; next con
 
 A mobile/web file picker normally provides `lastModified`, not trustworthy original creation time. Copying, messaging, or exporting can change it. Do not use server filesystem ctime as date taken. A future trusted server importer can label a file-date fallback as `file`; browser uploads without usable metadata use server upload time in the library's chosen timezone and are labeled `upload`. Choose a library timezone before ingestion is implemented. Manual edits set date_source=manual and preserve original EXIF data. Changing a date never moves or rewrites the original image.
 
-## Photo upload and processing design (next increment)
+## Photo upload and processing design
 
-1. The mobile `input type=file` supports multiple files without `capture`, so the photo library remains available. Desktop adds drag-and-drop. Send one file per request, with a small upload concurrency of two, progress/error status, and retry identity. Do not make one gigantic multipart request for the entire library.
-2. Authenticate and check CSRF before accepting uploads. Stream to a quota-limited staging volume. Enforce 50 MiB per photo, bounded header/body size, request/concurrency limits, and a 100-megapixel decoded image limit at the proxy and application. The current proxy accepts only 64 KiB because uploads are not yet implemented.
+1. The mobile `input type=file` supports multiple files without `capture`, so the photo library remains available. Desktop adds drag-and-drop. Send one binary photo per request, sequentially in the current client, with progress/error status and a stable retry identity. Do not make one gigantic multipart request for the entire library.
+2. Authenticate and check CSRF before accepting uploads. Stream to a staging directory with a free-space reserve check (not a filesystem quota). Enforce 50 MiB per photo, bounded header/body size, request/concurrency limits, and a 50-megapixel decoded image limit at the proxy and application. The proxy allows 50 MiB only on the upload route, retaining the 64 KiB limit elsewhere.
 3. Assign an opaque UUID path. Ignore any client filename as a filesystem path; retain only a sanitized display filename. Compute SHA-256 while streaming. Detect actual format and decode in the worker; MIME/extension assertions from the browser are not trusted. Accept JPEG/PNG/WebP/HEIC only once tested. Reject SVG, archives, executables, unsupported animation, malformed files, and decompression bombs.
-4. Commit a pending Photo and ProcessingJob transaction only after the staged bytes are durable. The queue uses `SELECT ... FOR UPDATE SKIP LOCKED`, bounded attempts, a lease with recovery, and idempotent processing. Interrupted uploads and orphan files need periodic reconciliation and expiry. Return a durable processing status, not a false upload-complete message.
+4. Commit a pending Photo and ProcessingJob transaction only after the staged bytes are durable. The queue uses `SELECT ... FOR UPDATE SKIP LOCKED` and holds its transaction while a bounded decoder subprocess works. A crash releases the lock and rolls back state. The supervisor records bounded retries after crashes/timeouts; the reserved lease_until field is not used by this implementation. `check_photo_storage` reports orphan originals without deleting them. Interrupted staged files require operator inspection; automatic cleanup is deferred. Return a durable processing status, not a false upload-complete message.
 5. In a non-root, resource-limited worker without network access, decode and extract dates, dimensions, orientation, camera, and GPS. Isolate decoders from web request workers. Handle corrupt metadata without silently changing chronology; show the fallback source.
-6. Preserve uploaded original bytes exactly. Move them atomically into `/photos/originals/<uuid-prefix>/<uuid>.<detected-extension>`. Store derived `/photos/thumbnails/...webp` (roughly 400 px) and `/photos/previews/...webp` (roughly 2048 px). Apply orientation and color-profile conversion to derivatives, strip EXIF/GPS from derivatives, and never overwrite originals. Finish each derivative by atomic rename, then mark the record ready in a transaction. Keep a recipe/version so derivatives can be regenerated later.
+6. Preserve uploaded original bytes exactly. Move them atomically into `/photos/originals/<uuid-prefix>/<uuid>`. Store derived `/photos/thumbnails/...webp` (roughly 400 px) and `/photos/previews/...webp` (roughly 2048 px). Apply orientation and color-profile conversion to derivatives, strip EXIF/GPS from derivatives, and never overwrite originals. Finish each derivative by atomic rename, then mark the record ready in a transaction. Keep a recipe/version so derivatives can be regenerated later.
 7. If a checksum matches, offer an existing-photo result or safe idempotent reuse after checking the complete operation; do not rely on original filenames for deduplication. A photo in many albums always references the same Photo.
 8. Serve bytes only through an authenticated endpoint. Check account status and trash visibility on every request; UUID secrecy is not authorization. Original download is an explicit attachment action. No Caddy file-server route to `/photos`. Use bounded streaming and eventually authorized internal delivery if profiling warrants it.
 
@@ -66,7 +66,7 @@ The derivative cache policy starts `private, no-store` to prevent images resurfa
 
 ## Experience and future extension points
 
-Shared tabs: All memories, Timeline, Albums, Picture book; personal tab: Favorites. A year/month/day picker filters the same paginated query. A photo detail dialog edits caption/date, lists memberships, and optionally shows camera/GPS. Location labels stay local unless both people explicitly choose an external geocoder.
+Shared tabs: All memories, Timeline, Albums, Picture book; personal tab: Favorites. A year/month/day picker filters the same paginated query. The current photo detail dialog edits caption/date and shows camera/GPS. Album membership editing comes later. Location labels stay local unless both people explicitly choose an external geocoder.
 
 Picture book pages use stable date order or album order, one to three images per spread, captions and quiet dates, keyboard arrows, swipe with a movement threshold, accessible buttons, full-screen where supported, and reduced-motion alternatives. Keep only adjacent pages loaded. On mobile use single-page spreads and preserve normal vertical scrolling.
 

@@ -30,13 +30,33 @@ services:
     command: [python, manage.py, migrate, --noinput]
     depends_on:
       db: {condition: service_healthy}
+  storage:
+    <<: *app
+    user: "0:0"
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    command: [python, prepare-storage.py]
+    volumes:
+      - ${DATA_DIR:-./data}/photos:/photos
   web:
     <<: *app
     restart: unless-stopped
     depends_on:
       migrate: {condition: service_completed_successfully}
+      storage: {condition: service_completed_successfully}
     volumes:
-      - ${DATA_DIR:-./data}/photos:/photos:ro
+      - ${DATA_DIR:-./data}/photos:/photos
+  worker:
+    <<: *app
+    restart: unless-stopped
+    command: [python, manage.py, process_photos]
+    mem_limit: 2g
+    cpus: 1.0
+    pids_limit: 64
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      storage: {condition: service_completed_successfully}
+    volumes:
+      - ${DATA_DIR:-./data}/photos:/photos
   proxy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -49,3 +69,9 @@ services:
       - ${DATA_DIR:-./data}/caddy-data:/data
       - ${DATA_DIR:-./data}/caddy-config:/config
     depends_on: [web]
+    networks: [default, ingress]
+
+networks:
+  default:
+    internal: true
+  ingress: {}

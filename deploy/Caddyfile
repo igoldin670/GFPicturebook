@@ -1,10 +1,20 @@
-# Default: Tailscale Serve terminates HTTPS and forwards to this loopback-only port.
-# Do not publish this HTTP listener to the internet or a LAN.
+# HTTPS is terminated by Tailscale Serve; this listener stays loopback-only.
 :80 {
-    request_body {
-        max_size 64KB
+    @upload path /api/photos/upload/
+    handle @upload {
+        request_body {
+            max_size 50MiB
+        }
+        reverse_proxy web:8000 {
+            header_up X-Forwarded-Proto https
+        }
     }
-    reverse_proxy web:8000 {
-        header_up X-Forwarded-Proto https
+    handle {
+        request_body {
+            max_size 64KB
+        }
+        reverse_proxy web:8000 {
+            header_up X-Forwarded-Proto https
+        }
     }
 }

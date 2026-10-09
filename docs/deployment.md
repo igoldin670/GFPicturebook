@@ -29,7 +29,7 @@ docker compose exec web python manage.py check --deploy
 
 The app has seven-day fixed-expiry server-side sessions, session-key rotation on login, CSRF verification including Origin checking, and Argon2 password hashing. Schedule `python manage.py clearsessions` daily once adding the scheduler. Disabling a user blocks subsequent requests through Django's authentication backend; changing a password invalidates their existing sessions. Use `changepassword username` from a trusted shell for recovery. There is no public registration. Give only your administrator account staff/superuser status; your partner can use a normal member account.
 
-The Django admin supplies user and album management. Photo records are read-only and cannot be hard-deleted through admin in this increment. Future admin changes must call the same validation/Trash services as the main API.
+The Django admin supplies user and album management. Photo records remain read-only there; members edit captions/dates through the validated photo detail API. Photos cannot be hard-deleted through admin. Future admin changes must call the same validation/Trash services as the main API.
 
 ## Alternative: public Caddy + application login
 
@@ -47,8 +47,8 @@ Current Axes settings independently lock usernames and the direct peer IP after 
 
 - No media directory is exposed by the proxy, Django, or static-asset middleware. Frontend assets contain no secrets; API/auth responses are `private, no-store`.
 - Only generated `.env` values hold credentials; its permissions are 0600, it is ignored by Git and excluded from image builds. Encrypt a recovery copy separately. Docker administrators/root can read container environments; Docker host access is privileged.
-- The application container runs as UID 10001 with a read-only root filesystem, dropped Linux capabilities, no-new-privileges, and a bounded temporary filesystem. Its photo mount is read-only until ingestion is implemented. Future worker/upload mounts need scoped write access and owned host directories.
-- Current request size is 64 KiB; uploads are unavailable. Future ingestion must add both streamed byte counting and decoded-pixel limits before raising it. File type validation is not implemented by merely listing accepted browser MIME types.
+- The application container runs as UID 10001 with a read-only root filesystem, dropped Linux capabilities, no-new-privileges, and a bounded temporary filesystem. A one-shot root storage service prepares ownership on the photo root and its four known subdirectories; it does not recursively change other files. Web and worker run as UID 10001 and share the writable photo mount. The processing worker runs in an internal Docker network with database access and no internet egress; each decoder subprocess has memory, CPU and wall-time limits.
+- The upload route accepts at most 50 MiB with streamed byte counting and a 50-megapixel decoder limit. All other routes remain limited to 64 KiB. Actual image decoding determines file type; filenames and browser MIME assertions are not trusted. Failed files stay private and never enter the gallery.
 - Original downloads may contain GPS; derivatives should strip metadata. Do not log passwords, cookies, binary data, captions, GPS, or raw EXIF. Restrict and rotate operational logs.
 - Database encryption at rest comes from encrypted server disks. Restic encrypts backups independently. A VPN and login do not protect against a compromised server or malicious browser on an authorized device.
 - Django's default superuser/password management commands may offer to bypass validators: do not bypass them. Use a password manager and unique long passwords.

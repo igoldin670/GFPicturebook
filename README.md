@@ -2,11 +2,13 @@
 
 A private, self-hosted picture book for two. Warm ivory, sage, quiet typography, and a focus on your photographs.
 
-**Increment 1 is implemented:** account authentication, privacy protections, relational schema and migrations, a responsive React welcome screen, a restricted Django administration area, and Docker Compose. **Uploading, photo browsing, picture-book navigation, processing workers, backups, trash actions, and PWA installation are not implemented yet.** This is a runnable foundation, not a finished photo archive. Do not put your only copies of memories here.
+**Increment 2 is implemented:** secure accounts, single/multiple photo uploads and desktop drag-and-drop, background processing for JPEG/PNG/WebP/HEIC, unchanged originals, EXIF dates/camera/GPS/orientation, private thumbnails/previews/downloads, a paginated chronological gallery, and caption/date editing. Picture-book navigation, richer album/favorites UI, timeline/search, Trash actions, PWA installation, and automatic backups are still planned. Keep an independent copy of every photo.
+
+**Already running increment 1? Follow [the server upgrade and photo test guide](docs/photo-uploads.md).** Keep your existing `.env` and accounts.
 
 Read [the architecture](docs/architecture.md) first, then [the development roadmap](docs/roadmap.md). [Security and deployment](docs/deployment.md) and [backup/restore design](docs/backups.md) explain the long-term operating model.
 
-## Run increment 1
+## First installation
 
 Prerequisites: Docker Engine with Compose v2 and Python 3 for generating local configuration. From this project directory:
 
@@ -23,7 +25,7 @@ On a remote server, use an SSH tunnel for this local test (`ssh -L 8080:127.0.0.
 
 If `.env` already exists, the generator refuses to overwrite it. Keep it: changing a running PostgreSQL container's password variable does not change the database password. `docker compose down` retains bind-mounted data. Never remove `data/` casually.
 
-## Verify increment 1
+## Verify the application
 
 ```sh
 docker compose exec web python manage.py test memories --verbosity 2
@@ -34,11 +36,11 @@ docker compose logs --tail=50 migrate web proxy
 Tests create and remove a separate test database. Use development data for this command. Manual checks:
 
 1. In a private browser window, `/api/summary/` returns 401 and `/admin/` requires login.
-2. Sign in using both accounts separately. Both see the same photo/album counts, currently zero.
+2. Sign in using both accounts separately. Both see the same shared photo library.
 3. A regular member cannot access admin; the administrator can create/edit albums and manage users.
 4. Sign out; the summary endpoint becomes inaccessible again. Login/logout without CSRF is rejected.
 5. Five failed logins trigger a 15-minute cooldown. The proxy-IP bucket may temporarily lock both users. For local recovery only: `docker compose exec web python manage.py axes_reset`.
-6. Test a narrow phone-sized browser and keyboard-only navigation. There are no actual photos or active upload controls at this stage.
+6. Test a narrow phone-sized browser and keyboard-only navigation. Upload a few test photos, wait for processing, open each preview, edit a caption/date, and download the original. Follow the detailed photo checks in `docs/photo-uploads.md`.
 
 ## Develop without Docker
 
@@ -54,13 +56,14 @@ set -a
 . ./.env
 set +a
 export USE_SQLITE=1
+export PHOTO_ROOT="$PWD/data/photos"
 .venv/bin/python backend/manage.py migrate
 .venv/bin/python backend/manage.py createsuperuser
 .venv/bin/python backend/manage.py create_member your-partners-username
 .venv/bin/python backend/manage.py runserver 127.0.0.1:8000
 ```
 
-In another terminal: `npm run dev --prefix frontend`. Open http://localhost:5173. Vite proxies `/api/` and `/admin/` to Django; the React page is served by Vite in development. Do not use Django's root URL in this mode: its frontend template is assembled in the production Docker build.
+In another terminal: `npm run dev --prefix frontend`. Run the worker in a third terminal with the same environment loaded: `cd backend && ../.venv/bin/python manage.py process_photos`. PostgreSQL is required for concurrent workers; SQLite is only for single-worker local development. Open http://localhost:5173. Vite proxies `/api/` and `/admin/` to Django; the React page is served by Vite in development. Do not use Django's root URL in this mode: its frontend template is assembled in the production Docker build.
 
 ```sh
 # With the environment loaded as above:
@@ -79,15 +82,19 @@ GFPicturebook/
 │   │   ├── models.py           # Photos, albums, memberships, favorites, jobs, backups
 │   │   ├── migrations/        # Versioned schema
 │   │   ├── views.py            # CSRF/session/login/logout/private summary APIs
+│   │   ├── photo_views.py      # Upload, cursor gallery, metadata editing, private media
+│   │   ├── services/photos.py  # Durable storage, EXIF, thumbnails and worker transactions
 │   │   ├── middleware.py       # Private response and browser security headers
 │   │   ├── admin.py            # Restricted admin (no hard photo deletion)
 │   │   ├── tests.py            # Authentication and relationship regression tests
+│   │   ├── test_photos.py      # Image, storage, processing and privacy regression tests
 │   │   └── management/commands/create_member.py
 │   ├── requirements.txt        # Direct dependency constraints
 │   ├── requirements.lock       # Exact resolved Python dependencies
 │   └── manage.py
 ├── frontend/
 │   ├── src/main.tsx            # Sign-in and authenticated welcome screen
+│   ├── src/Gallery.tsx         # Upload progress, gallery and editable photo details
 │   ├── src/style.css           # Responsive design, local fonts, reduced motion
 │   ├── package-lock.json       # Exact JS dependency resolution
 │   └── vite.config.ts
@@ -99,7 +106,7 @@ GFPicturebook/
 ├── .env.example                # Names and non-secret defaults only
 └── data/                       # Ignored persistent host data, created by Compose
     ├── postgres/
-    ├── photos/                 # Reserved; read-only in this increment
+    ├── photos/                 # Private shared photo storage for web + worker
     │   ├── originals/
     │   ├── thumbnails/
     │   ├── previews/

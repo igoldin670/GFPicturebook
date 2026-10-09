@@ -52,3 +52,9 @@ STATICFILES_DIRS = [BASE_DIR / "web" / "static"] if (BASE_DIR / "web" / "static"
 STORAGES = {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}, "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"}}
 # Deliberately no public MEDIA_URL or static route to original files.
 PHOTO_ROOT = Path(os.environ.get("PHOTO_ROOT", "/photos"))
+
+# EXIF without an offset keeps its camera-local date. Only fallback dates use this zone.
+TIME_ZONE = os.environ.get("LIBRARY_TIME_ZONE", "UTC")
+UPLOAD_MAX_BYTES = 50 * 1024 * 1024
+PHOTO_FREE_RESERVE = 512 * 1024 * 1024
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10
