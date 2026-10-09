@@ -226,3 +226,30 @@ class PhotoTests(TestCase):
         output=io.StringIO();call_command('check_photo_storage',stdout=output)
         self.assertIn('1 unreferenced originals',output.getvalue())
         self.assertTrue(orphan.exists())
+
+    def test_iphone_mpo_uses_primary_image_and_preserves_whole_original(self):
+        output = io.BytesIO()
+        exif = Image.Exif()
+        exif[274] = 6
+        exif[34665] = {36867: '2022:03:04 12:30:00'}
+        # Deliberately different auxiliary dimensions/color detect wrong-frame decoding.
+        Image.new('RGB', (80, 40), 'red').save(
+            output, format='MPO', save_all=True,
+            append_images=[Image.new('RGB', (20, 10), 'blue')], exif=exif)
+        data = output.getvalue()
+        with Image.open(io.BytesIO(data)) as source:
+            self.assertEqual(source.format, 'MPO')
+            self.assertEqual(source.n_frames, 2)
+        photo = self.ready(data)
+        self.assertEqual(photo.status, 'ready')
+        self.assertEqual(photo.mime_type, 'image/jpeg')
+        self.assertEqual((photo.width, photo.height), (80, 40))
+        self.assertEqual(photo.display_date, date(2022, 3, 4))
+        self.assertEqual(storage_path(photo.original_key).read_bytes(), data)
+        self.assertEqual(photo.sha256, hashlib.sha256(data).hexdigest())
+        with Image.open(storage_path(photo.preview_key)) as preview:
+            self.assertEqual(preview.size, (40, 80))
+            red, green, blue = preview.convert('RGB').getpixel((10, 10))
+            self.assertGreater(red, 200)
+            self.assertLess(blue, 40)
+            self.assertFalse(preview.getexif())

@@ -18,7 +18,7 @@ from memories.models import Photo, ProcessingJob
 
 register_heif_opener()
 Image.MAX_IMAGE_PIXELS = 50_000_000
-FORMATS = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "HEIF": "image/heic"}
+FORMATS = {"JPEG": "image/jpeg", "MPO": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "HEIF": "image/heic"}
 
 class InvalidImage(Exception):
     pass
@@ -175,10 +175,15 @@ def process(photo):
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
             with Image.open(path) as check:
-                if check.format not in FORMATS or getattr(check, "n_frames", 1) != 1:
+                # MPO is a JPEG container that can include an auxiliary image (e.g.
+                # an iPhone gain map). Render its first/main image, not the auxiliary.
+                # Other multi-frame formats remain unsupported.
+                if check.format not in FORMATS or (check.format != "MPO" and getattr(check, "n_frames", 1) != 1):
                     raise InvalidImage("unsupported_format")
                 check.verify()
             with Image.open(path) as original:
+                if original.format == "MPO":
+                    original.seek(0)
                 original.load()
                 photo.mime_type = FORMATS[original.format]
                 exif = original.getexif()

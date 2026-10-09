@@ -1,6 +1,6 @@
 # Increment 2: upload and keep your first photos
 
-This increment preserves the received original bytes and generates metadata, a thumbnail (up to 400 px), and a preview (up to 2048 px). Supported still formats: JPEG, PNG, WebP and HEIC/HEIF. Animated/multi-frame images, videos and Live Photo video components are not supported. Browser/iOS export may convert a selected image before upload; the server preserves the exact bytes it receives, not an unavailable on-device version.
+This increment preserves the received original bytes and generates metadata, a thumbnail (up to 400 px), and a preview (up to 2048 px). Supported still formats: JPEG (including iPhone MPO files with auxiliary images), PNG, WebP and HEIC/HEIF. MPO previews use the first/main image and preserve all original bytes; auxiliary images are not shown separately. Other animated/multi-frame images, videos and Live Photo video components are not supported. Browser/iOS export may convert a selected image before upload; the server preserves the exact bytes it receives, not an unavailable on-device version.
 
 ## Upgrade your existing Ubuntu server
 
@@ -50,7 +50,7 @@ docker compose exec web python manage.py makemigrations --check --dry-run
 docker compose exec web python manage.py check_photo_storage
 ```
 
-Expected: **40 tests pass**. The tests use a separate test database and temporary image directories. They do not delete production originals. Database credentials currently permit creating the test database; run tests during development, not heavy use.
+Expected: **41 tests pass**. The tests use a separate test database and temporary image directories. They do not delete production originals. Database credentials currently permit creating the test database; run tests during development, not heavy use.
 
 ## Troubleshooting
 

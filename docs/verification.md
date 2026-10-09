@@ -1,3 +1,9 @@
+# iPhone MPO compatibility fix
+
+Docker rebuild/startup succeeded and all 41 tests passed on PostgreSQL and SQLite.
+
+Added a generated two-image MPO regression fixture matching the reported container type. It verifies primary-image selection, EXIF date/orientation, metadata-free previews, and byte-for-byte preservation of the complete original. Animated WebP rejection remains covered. The user's private source images were not accessed; confirm the fix on the server by retrying the retained uploads.
+
 # Increment 2 verification
 
 Verified in the supplied Linux workspace on 2026-10-09:
