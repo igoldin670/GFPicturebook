@@ -253,3 +253,35 @@ class PhotoTests(TestCase):
             self.assertGreater(red, 200)
             self.assertLess(blue, 40)
             self.assertFalse(preview.getexif())
+
+    def test_processing_status_distinguishes_failure_reasons_without_private_paths(self):
+        photo = self.ready(b'not a photo')
+        self.assertEqual(photo.processingjob.error_code, 'invalid_image')
+        response = self.client.get('/api/photos/uploads/').json()['uploads'][0]
+        self.assertIn('damaged', response['message'])
+        self.assertNotIn(str(self.temp.name), response['message'])
+        photo.processingjob.error_code = 'raw private exception text'
+        photo.processingjob.save()
+        response = self.client.get('/api/photos/uploads/').json()['uploads'][0]
+        self.assertNotIn('raw private', response['message'])
+    def test_pixel_limit_has_an_actionable_processing_reason(self):
+        with patch.object(Image, 'MAX_IMAGE_PIXELS', 100):
+            photo = self.ready()
+        self.assertEqual(photo.processingjob.error_code, 'image_too_large')
+        self.assertIn('50-megapixel', self.client.get('/api/photos/uploads/').json()['uploads'][0]['message'])
+    def test_exif_boundary_offset_does_not_crash_processing(self):
+        exif = Image.Exif()
+        exif[36867] = '0001:01:01 00:00:00'
+        exif[36881] = '+14:00'
+        result = capture_date(exif)
+        self.assertEqual(result['display_date'], date(1, 1, 1))
+        self.assertNotIn('taken_at', result)
+    def test_missing_original_is_reported_without_claiming_it_is_retained(self):
+        response = self.upload()
+        photo = Photo.objects.get(pk=response.json()['id'])
+        storage_path(photo.original_key).unlink()
+        self.assertTrue(process_one())
+        photo.refresh_from_db()
+        self.assertEqual(photo.status, 'failed')
+        self.assertEqual(photo.processingjob.error_code, 'missing_original')
+        self.assertNotIn('retained', self.client.get('/api/photos/uploads/').json()['uploads'][0]['message'])

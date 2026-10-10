@@ -66,7 +66,7 @@ The derivative cache policy starts `private, no-store` to prevent images resurfa
 
 ## Experience and future extension points
 
-Shared tabs: All memories, Timeline, Albums, Picture book; personal tab: Favorites. A year/month/day picker filters the same paginated query. The current photo detail dialog edits caption/date and shows camera/GPS. Album membership editing comes later. Location labels stay local unless both people explicitly choose an external geocoder.
+The current interface is a single shared photo collection grouped by day. Timeline, Albums, Picture book and personal Favorites views remain planned. A year/month/day picker filters the same paginated query. The current photo detail dialog edits caption/date and shows camera/GPS. Album membership editing comes later. Location labels stay local unless both people explicitly choose an external geocoder.
 
 Picture book pages use stable date order or album order, one to three images per spread, captions and quiet dates, keyboard arrows, swipe with a movement threshold, accessible buttons, full-screen where supported, and reduced-motion alternatives. Keep only adjacent pages loaded. On mobile use single-page spreads and preserve normal vertical scrolling.
 

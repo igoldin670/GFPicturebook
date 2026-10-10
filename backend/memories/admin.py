@@ -17,7 +17,7 @@ class PhotoAdmin(admin.ModelAdmin):
     list_display = ["original_filename", "display_date", "date_source", "status", "trashed_at"]
     search_fields = ["original_filename", "caption"]
     list_filter = ["status", "date_source"]
-    # Ingestion and date editing arrive with the validated services in later steps.
+    # Captions/dates are edited through the validated API; originals stay read-only here.
     readonly_fields = [f.name for f in Photo._meta.fields]
     def has_add_permission(self, request):
         return False

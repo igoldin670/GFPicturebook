@@ -1,3 +1,19 @@
+# Frontend refresh and backend review — 2026-10-10
+
+The interface uses a light-purple palette, a compact header, date-grouped photo grids and a simpler photo editor. See `backend-review.md` for findings, fixes, validation limits and server update commands.
+
+- TypeScript/Vite production build passed for the final frontend source.
+- The Docker rebuild and startup passed; all **49 tests passed on PostgreSQL**, including real simultaneous queue admission and UUID-collision requests from the two members.
+- SQLite tests passed with the two PostgreSQL-specific concurrency checks skipped.
+- HTTP integration passed for JPEG/HEIC uploads, the actual bounded worker, EXIF dates, original SHA-256 equality, metadata-free previews, caption/date changes and rejection of media after logout. Synthetic accounts/images were removed.
+- Migration drift check passed. Production checks show only the existing intentional HSTS subdomain/preload warnings.
+- Primary text, muted labels, purple controls and error text were checked for at least 4.5:1 contrast against their intended backgrounds. Actual browser rendering, focus/touch interaction and phone selection were not automated; no browser-control tool is available.
+- No new frontend dependencies, migration, secret, account role or hosting setting is needed. Automatic backups and Trash remain planned.
+
+Earlier verification follows for history.
+
+---
+
 # iPhone MPO compatibility fix
 
 Docker rebuild/startup succeeded and all 41 tests passed on PostgreSQL and SQLite.

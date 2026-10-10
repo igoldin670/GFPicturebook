@@ -1,6 +1,6 @@
 # Our little album
 
-A private, self-hosted picture book for two. Warm ivory, sage, quiet typography, and a focus on your photographs.
+A private, self-hosted picture book for two. A quiet light-purple interface with the photographs at the center.
 
 **Increment 2 is implemented:** secure accounts, single/multiple photo uploads and desktop drag-and-drop, background processing for JPEG/PNG/WebP/HEIC, unchanged originals, EXIF dates/camera/GPS/orientation, private thumbnails/previews/downloads, a paginated chronological gallery, and caption/date editing. Picture-book navigation, richer album/favorites UI, timeline/search, Trash actions, PWA installation, and automatic backups are still planned. Keep an independent copy of every photo.
 
@@ -19,7 +19,7 @@ docker compose exec web python manage.py createsuperuser
 docker compose exec web python manage.py create_member your-partners-username
 ```
 
-Use a separate username for each person. Commands prompt for passwords; no default credentials exist. `--local` permits HTTP only for this local test. Open http://localhost:8080, sign in, and open Manage our space for the admin. A member can sign in but cannot access admin. Compose waits for PostgreSQL, applies migrations in a one-shot service, then starts the web app. The database and application ports are not published; the proxy binds only to loopback.
+Use a separate username for each person. Commands prompt for passwords; no default credentials exist. `--local` permits HTTP only for this local test. Open http://localhost:8080, sign in, and open Settings for the admin. A member can sign in but cannot access admin. Compose waits for PostgreSQL, applies migrations in a one-shot service, then starts the web app. The database and application ports are not published; the proxy binds only to loopback.
 
 On a remote server, use an SSH tunnel for this local test (`ssh -L 8080:127.0.0.1:8080 user@server`), or configure the production HTTPS/Tailscale instructions before signing in. Do not expose development HTTP.
 
@@ -93,8 +93,10 @@ GFPicturebook/
 │   ├── requirements.lock       # Exact resolved Python dependencies
 │   └── manage.py
 ├── frontend/
-│   ├── src/main.tsx            # Sign-in and authenticated welcome screen
-│   ├── src/Gallery.tsx         # Upload progress, gallery and editable photo details
+│   ├── src/main.tsx            # Sign-in, session expiry, and account controls
+│   ├── src/Gallery.tsx         # Upload progress and gallery grouped by date
+│   ├── src/PhotoDialog.tsx     # Preview, editable captions/dates and download
+│   ├── src/api.ts              # Shared request errors and session-expiry handling
 │   ├── src/style.css           # Responsive design, local fonts, reduced motion
 │   ├── package-lock.json       # Exact JS dependency resolution
 │   └── vite.config.ts
@@ -122,3 +124,5 @@ See [verification results and limits](docs/verification.md) for checks actually 
 ## Maintenance
 
 Track this source in Git; keep `.env`, photo storage, databases, and backups outside Git. Review dependencies monthly and promptly apply security releases. Regenerate `requirements.lock` in a clean virtual environment after updating direct constraints; run the tests and image build before upgrading the server. Pin deployed image digests after testing a release. Read the backup plan before the first real import.
+
+See [the frontend refresh and backend review](docs/backend-review.md) for the latest changes and server update commands.

@@ -10,11 +10,12 @@ import warnings
 from datetime import datetime, timedelta, timezone as dt_timezone
 from pathlib import Path
 from django.conf import settings
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 from PIL import Image, ImageOps, ImageCms, UnidentifiedImageError
 from pillow_heif import register_heif_opener
 from memories.models import Photo, ProcessingJob
+from .failures import safe_code
 
 register_heif_opener()
 Image.MAX_IMAGE_PIXELS = 50_000_000
@@ -66,9 +67,12 @@ def receive(request, identifier, filename):
             output.flush()
             os.fsync(output.fileno())
         with transaction.atomic():
-            # Serialize each member's admission checks and idempotent retries.
-            from django.contrib.auth import get_user_model
-            get_user_model().objects.select_for_update().get(pk=request.user.pk)
+            # Both members share a queue and UUID namespace. Lock the short
+            # admission transaction across the library, after streaming the bytes.
+            # SQLite is only for single-process local development.
+            if connection.vendor == "postgresql":
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_advisory_xact_lock(%s)", [0x414C42554D])
             existing = Photo.objects.filter(pk=identifier).first()
             if existing:
                 if existing.uploaded_by_id != request.user.pk or existing.sha256 != digest.hexdigest():
@@ -76,7 +80,7 @@ def receive(request, identifier, filename):
                 return existing
             if Photo.objects.filter(uploaded_by=request.user, uploaded_at__gte=timezone.now()-timedelta(minutes=1)).count() >= 60:
                 raise InvalidImage("Upload limit reached. Wait a minute before retrying.")
-            if Photo.objects.filter(status=Photo.Status.PENDING).count() >= 100:
+            if Photo.objects.filter(status=Photo.Status.PENDING).count() >= settings.PHOTO_QUEUE_LIMIT:
                 raise InvalidImage("Processing queue is full. Wait before uploading more.")
             # Extension is deliberately absent: only the decoder decides the MIME type.
             key = f"originals/{str(identifier)[:2]}/{identifier}"
@@ -128,7 +132,13 @@ def capture_date(exif):
             hours, minutes = int(offset[1:3]), int(offset[4:6])
             if hours <= 14 and minutes < 60 and (hours < 14 or minutes == 0):
                 total = (hours * 60 + minutes) * (-1 if offset[0] == "-" else 1)
-                result.update(taken_offset_minutes=total, taken_at=local.replace(tzinfo=dt_timezone(timedelta(minutes=total))).astimezone(dt_timezone.utc))
+                try:
+                    instant = local.replace(tzinfo=dt_timezone(timedelta(minutes=total))).astimezone(dt_timezone.utc)
+                except OverflowError:
+                    # A corrupt boundary date must not prevent otherwise valid decoding.
+                    pass
+                else:
+                    result.update(taken_offset_minutes=total, taken_at=instant)
         return result
     return {}
 
@@ -139,7 +149,7 @@ def gps_coordinates(exif):
         def decimal(tag, ref_tag, positive, negative, bound):
             parts = [float(p) for p in gps[tag]]
             ref = clean_text(gps[ref_tag])
-            if len(parts) != 3 or ref not in (positive, negative) or not 0 <= parts[1] < 60 or not 0 <= parts[2] < 60:
+            if len(parts) != 3 or ref not in (positive, negative) or not 0 <= parts[0] <= bound or not 0 <= parts[1] < 60 or not 0 <= parts[2] < 60:
                 return None
             value = (parts[0] + parts[1]/60 + parts[2]/3600) * (-1 if ref == negative else 1)
             return round(value, 7) if -bound <= value <= bound else None
@@ -178,8 +188,10 @@ def process(photo):
                 # MPO is a JPEG container that can include an auxiliary image (e.g.
                 # an iPhone gain map). Render its first/main image, not the auxiliary.
                 # Other multi-frame formats remain unsupported.
-                if check.format not in FORMATS or (check.format != "MPO" and getattr(check, "n_frames", 1) != 1):
+                if check.format not in FORMATS:
                     raise InvalidImage("unsupported_format")
+                if check.format != "MPO" and getattr(check, "n_frames", 1) != 1:
+                    raise InvalidImage("animated_image")
                 check.verify()
             with Image.open(path) as original:
                 if original.format == "MPO":
@@ -207,8 +219,18 @@ def process(photo):
                 save_derivative(pixels, photo.preview_key, 2048)
                 pixels.close()
                 oriented.close()
-        except (UnidentifiedImageError, Image.DecompressionBombError, Image.DecompressionBombWarning, SyntaxError, ValueError) as exc:
-            raise InvalidImage("invalid_or_oversized_image") from exc
+        except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+            raise InvalidImage("image_too_large") from exc
+        except FileNotFoundError as exc:
+            raise InvalidImage("missing_original") from exc
+        except (UnidentifiedImageError, SyntaxError, ValueError) as exc:
+            raise InvalidImage("invalid_image") from exc
+        except OSError as exc:
+            # Pillow uses errno-less OSError for corrupt compressed data. Actual
+            # filesystem errors should retain their bounded retry behavior.
+            if exc.errno is None:
+                raise InvalidImage("invalid_image") from exc
+            raise
     photo.status = Photo.Status.READY
     photo.save()
 
@@ -231,12 +253,12 @@ def process_one(job_id=None):
         try:
             process(photo)
             job.error_code = ""
-        except InvalidImage:
+        except InvalidImage as exc:
             photo.status = Photo.Status.FAILED
-            job.error_code = "invalid_or_unsupported_image"
+            job.error_code = safe_code(str(exc))
             photo.save(update_fields=["status"])
         except (OSError, MemoryError):
-            job.error_code = "processing_failed"
+            job.error_code = "storage_unavailable"
             if job.attempts >= 3:
                 photo.status = Photo.Status.FAILED
                 photo.save(update_fields=["status"])

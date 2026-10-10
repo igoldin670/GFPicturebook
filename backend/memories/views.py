@@ -48,3 +48,10 @@ def summary(request):
 @require_GET
 def health(request):
     return JsonResponse({"status": "ok"})
+
+
+def csrf_failure(request, reason=""):
+    if request.path.startswith("/api/"):
+        return JsonResponse({"error": "Your session changed. Refresh the page and try again."}, status=403)
+    from django.views.csrf import csrf_failure as django_csrf_failure
+    return django_csrf_failure(request, reason=reason)

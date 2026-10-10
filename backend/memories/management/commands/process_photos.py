@@ -1,5 +1,4 @@
 """One supervisor, one bounded decoder subprocess at a time."""
-import os
 import subprocess
 import sys
 import time
@@ -8,8 +7,12 @@ from django.core.management.base import BaseCommand
 from django.db import close_old_connections, transaction
 from django.utils import timezone
 from memories.models import Photo, ProcessingJob
+from memories.services.failures import safe_code
 
 class Command(BaseCommand):
+    # Avoid URL checks importing native image libraries in the supervisor or
+    # before the child applies its resource limits.
+    requires_system_checks = []
     help = "Process queued photos; --once drains currently available jobs and exits."
     def add_arguments(self, parser):
         parser.add_argument("--once", action="store_true")
@@ -49,4 +52,8 @@ class Command(BaseCommand):
                             photo.status = Photo.Status.FAILED
                             photo.save(update_fields=["status"])
                         job.save()
-                self.stderr.write(f"Photo job {job_id}: decoder interrupted; retry bounded to three attempts.")
+            # Decoder stdout/stderr stay suppressed: native exceptions can include
+            # private paths. Report only our fixed error code and attempt count.
+            state = ProcessingJob.objects.filter(pk=job_id).values("error_code", "attempts").first()
+            if state and state["error_code"]:
+                self.stderr.write(f"Photo job {job_id}: {safe_code(state['error_code'])} (attempt {state['attempts']}/3).")

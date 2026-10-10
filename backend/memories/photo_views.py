@@ -5,6 +5,7 @@ from datetime import date
 from functools import wraps
 from urllib.parse import unquote
 from django.conf import settings
+from django.db import transaction
 from django.core import signing
 from django.db.models import Q
 from django.http import FileResponse, JsonResponse, Http404
@@ -12,6 +13,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 from memories.models import Photo
 from memories.services.photos import receive, storage_path, InvalidImage
+from memories.services.failures import failure_message
 
 
 def member(view):
@@ -47,6 +49,8 @@ def upload(request):
         length = int(request.headers.get("Content-Length", "0"))
     except (ValueError, TypeError):
         return JsonResponse({"error": "Invalid upload identifier or length."}, status=400)
+    if length < 0:
+        return JsonResponse({"error": "Invalid upload length."}, status=400)
     if length > settings.UPLOAD_MAX_BYTES:
         return JsonResponse({"error": "Photos must be at most 50 MiB."}, status=413)
     filename = unquote(request.headers.get("X-Filename", "photo"))
@@ -82,9 +86,9 @@ def gallery(request):
 @require_GET
 @member
 def upload_status(request):
-    rows = Photo.objects.filter(uploaded_by=request.user, trashed_at__isnull=True).exclude(status=Photo.Status.READY).order_by("-uploaded_at")[:100]
+    rows = Photo.objects.filter(uploaded_by=request.user, trashed_at__isnull=True).exclude(status=Photo.Status.READY).select_related("processingjob").order_by("-uploaded_at")[:100]
     return JsonResponse({"uploads": [{"id": str(p.id), "filename": p.original_filename, "status": p.status,
-        "message": "Unable to process this file. Unsupported, damaged, oversized, or a processing failure; your uploaded bytes are retained." if p.status == Photo.Status.FAILED else "Waiting for photo processing…"} for p in rows]})
+        "message": failure_message(p.processingjob.error_code if hasattr(p, "processingjob") else "processing_failed") if p.status == Photo.Status.FAILED else "Processing…"} for p in rows]})
 
 
 @require_GET
@@ -115,11 +119,12 @@ def edit(request, identifier):
             raise ValueError()
     except (KeyError, ValueError, TypeError):
         return JsonResponse({"error": "Provide a valid date and a caption of at most 5,000 characters."}, status=400)
-    photo = get_object_or_404(visible(), pk=identifier)
-    photo.caption = caption
-    if photo.display_date != calendar:
-        photo.display_date = calendar
-        photo.date_source = Photo.DateSource.MANUAL
-    # Original EXIF facts and bytes remain untouched by a calendar-date correction.
-    photo.save(update_fields=["caption", "display_date", "date_source"])
+    with transaction.atomic():
+        photo = get_object_or_404(visible().select_for_update(), pk=identifier)
+        photo.caption = caption
+        if photo.display_date != calendar:
+            photo.display_date = calendar
+            photo.date_source = Photo.DateSource.MANUAL
+        # Original EXIF facts and bytes remain untouched by a calendar-date correction.
+        photo.save(update_fields=["caption", "display_date", "date_source"])
     return JsonResponse(serialize(photo))

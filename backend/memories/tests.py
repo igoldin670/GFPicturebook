@@ -78,3 +78,15 @@ class SecurityTests(TestCase):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get("/api/summary/").json()["favorites"], 0)
         self.assertEqual(Photo.objects.count(), 1)
+
+    def test_csrf_errors_are_safe_json_for_the_frontend(self):
+        response = self.client.post('/api/login/', '{}', content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.headers['Content-Type'], 'application/json')
+        self.assertIn('Refresh', response.json()['error'])
+    def test_deactivating_a_logged_in_member_revokes_private_api_access(self):
+        self.login()
+        self.user.is_active = False
+        self.user.save()
+        self.assertEqual(self.client.get('/api/summary/').status_code, 401)
+        self.assertEqual(self.client.get('/api/photos/').status_code, 401)

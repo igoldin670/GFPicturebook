@@ -50,7 +50,7 @@ docker compose exec web python manage.py makemigrations --check --dry-run
 docker compose exec web python manage.py check_photo_storage
 ```
 
-Expected: **41 tests pass**. The tests use a separate test database and temporary image directories. They do not delete production originals. Database credentials currently permit creating the test database; run tests during development, not heavy use.
+Expected: **49 tests pass**. The tests use a separate test database and temporary image directories. They do not delete production originals. Database credentials currently permit creating the test database; run tests during development, not heavy use.
 
 ## Troubleshooting
 
@@ -62,10 +62,10 @@ docker compose logs --tail=100 storage migrate web worker proxy
 - **Permission denied connecting to Docker:** reconnect after joining the Docker group, or temporarily prefix the command with `sudo`.
 - **Received but still processing:** confirm worker is running; inspect logs. Processing retries transient errors three times with a 30-second delay. A single job has a 90-second wall-time limit and 60-second CPU limit. The worker never rewrites the original.
 - **Storage unavailable:** the uploader preserves at least 512 MiB of free-space reserve plus the maximum incoming file size. Free space on the photo volume and check the storage service. Disk failure after admission can still fail derivative creation; there is no promise that a preliminary space check guarantees success.
-- **Unable to process:** invalid/unsupported files stay out of the gallery. For a transient storage issue, find the photo UUID from `/api/photos/uploads/` while signed in, correct the cause, then run `docker compose exec web python manage.py retry_photo PHOTO_UUID`. Do not repeatedly retry a corrupt file.
+- **Processing failure:** the upload list now shows the specific safe reason (unsupported/animated image, pixel limit, damaged image, storage issue, or interrupted decoder). Invalid/unsupported files stay out of the gallery. For a transient storage issue, find the photo UUID from `/api/photos/uploads/` while signed in, correct the cause, then run `docker compose exec web python manage.py retry_photo PHOTO_UUID`. Do not repeatedly retry a corrupt file.
 - **Connection dropped during upload:** use Retry unsuccessful uploads. It reuses the same UUID, so a completed server receipt is not duplicated. Selecting the file again creates a new upload; full content deduplication is not implemented.
 - **Staged/unreferenced files:** `check_photo_storage` is read-only. A crash between file persistence and database commit may leave an original without a row. Retrying with the same upload UUID can recover it. Never run an indiscriminate cleanup command against originals. Inspect interrupted staging files during downtime; automatic orphan removal is intentionally deferred.
 
-The gallery uses 48-photo cursor pages and lazy thumbnails. Upload batches are capped at 100 selected files; the client uploads sequentially. Admission limits are 60 accepted uploads per member per minute and approximately 100 queued photos, plus the free-space check. If a batch hits a limit, wait and retry its unsuccessful items. These are private-library limits, not a substitute for public edge abuse controls.
+The gallery uses 48-photo cursor pages and lazy thumbnails. Upload batches are capped at 100 selected files; the client uploads sequentially. Admission limits are 60 accepted uploads per member per minute and 100 queued photos across both members, plus the free-space check. If a batch hits a limit, wait and retry its unsuccessful items. These are private-library limits, not a substitute for public edge abuse controls.
 
 Still pending: automatic/verified backups, Trash, dedicated album/favorites editing, richer filtering/timeline, picture-book pages, and installable PWA. There is no permanent-delete action in this release.
