@@ -10,6 +10,7 @@ RUN npm run build
 FROM python:3.12-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.lock ./
 RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca; fi; pip install --no-cache-dir -r requirements.lock
@@ -22,4 +23,4 @@ RUN python -c 'import os,secrets; os.environ["DJANGO_SECRET_KEY"]=secrets.token_
     && groupadd --gid 10001 album && useradd --uid 10001 --gid album --no-create-home album
 USER 10001:10001
 EXPOSE 8000
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--threads", "4", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--threads", "4", "--timeout", "3600", "--access-logfile", "-", "--error-logfile", "-"]

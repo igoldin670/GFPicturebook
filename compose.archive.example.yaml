@@ -1,0 +1,42 @@
+# Copy to compose.archive.yaml, replace host paths after existing filesystems are
+# safely mounted by UUID. The app never mounts/formats disks. All bind sources
+# must exist; Docker must not silently create missing drive directories.
+x-drive-mounts: &drives
+  - type: bind
+    source: ./config/drives.json
+    target: /config/drives.json
+    read_only: true
+    bind: {create_host_path: false}
+  - type: bind
+    source: /dev/disk/by-uuid
+    target: /dev/disk/by-uuid
+    read_only: true
+    bind: {create_host_path: false}
+  - type: bind
+    source: /mnt/album-drive-1
+    target: /drives/one
+    bind: {create_host_path: false}
+  - type: bind
+    source: /mnt/album-drive-2
+    target: /drives/two
+    bind: {create_host_path: false}
+  - type: bind
+    source: /mnt/album-drive-3
+    target: /drives/three
+    bind: {create_host_path: false}
+  - type: bind
+    source: /var/lib/album-os-monitor
+    target: /drives/os
+    read_only: true
+    bind: {create_host_path: false}
+services:
+  web:
+    environment: {STORAGE_DRIVES_FILE: /config/drives.json}
+    volumes: *drives
+    mem_limit: 8g
+  worker:
+    environment: {STORAGE_DRIVES_FILE: /config/drives.json}
+    volumes: *drives
+  archive:
+    environment: {STORAGE_DRIVES_FILE: /config/drives.json}
+    volumes: *drives

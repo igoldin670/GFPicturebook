@@ -2,6 +2,7 @@ import uuid
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 class Photo(models.Model):
     class DateSource(models.TextChoices):
@@ -22,6 +23,10 @@ class Photo(models.Model):
     preview_key = models.CharField(max_length=255, blank=True)
     sha256 = models.CharField(max_length=64, db_index=True)
     byte_size = models.PositiveBigIntegerField()
+    media_kind = models.CharField(max_length=8, default="photo", choices=[("photo", "Photo"), ("video", "Video")])
+    duration = models.FloatField(null=True, blank=True)
+    playback_key = models.CharField(max_length=255, blank=True)
+    playback_mime = models.CharField(max_length=80, blank=True)
     mime_type = models.CharField(max_length=80)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
@@ -90,3 +95,49 @@ class BackupRun(models.Model):
     status = models.CharField(max_length=20, choices=[("running", "Running"), ("success", "Success"), ("failed", "Failed")])
     snapshot_id = models.CharField(max_length=100, blank=True)
     verified_at = models.DateTimeField(null=True, blank=True)
+
+class StorageDrive(models.Model):
+    """Configuration is external; this table holds observations, never credentials."""
+    uuid = models.CharField(max_length=100, primary_key=True)
+    label = models.CharField(max_length=100)
+    path = models.CharField(max_length=500)
+    physical_id = models.CharField(max_length=500, blank=True)
+    status = models.CharField(max_length=30, default="offline")
+    health = models.CharField(max_length=100, default="Not checked")
+    total_bytes = models.PositiveBigIntegerField(default=0)
+    free_bytes = models.PositiveBigIntegerField(default=0)
+    checked_at = models.DateTimeField(null=True)
+    last_io_error_at = models.DateTimeField(null=True)
+    integrity_failures = models.PositiveIntegerField(default=0)
+    def __str__(self):
+        return self.label
+
+class StoredAsset(models.Model):
+    photo = models.ForeignKey(Photo, on_delete=models.PROTECT, related_name="assets")
+    variant = models.CharField(max_length=20)
+    key = models.CharField(max_length=255, unique=True)
+    sha256 = models.CharField(max_length=64)
+    byte_size = models.PositiveBigIntegerField()
+    protection = models.CharField(max_length=20, default="pending")
+    checked_at = models.DateTimeField(null=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["photo", "variant"], name="unique_media_asset")]
+
+class FileReplica(models.Model):
+    asset = models.ForeignKey(StoredAsset, on_delete=models.PROTECT, related_name="replicas")
+    drive = models.ForeignKey(StorageDrive, on_delete=models.PROTECT)
+    state = models.CharField(max_length=20, default="pending")
+    verified_at = models.DateTimeField(null=True)
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["asset", "drive"], name="unique_asset_drive")]
+
+class StorageJob(models.Model):
+    photo = models.OneToOneField(Photo, on_delete=models.PROTECT, related_name="storage_job")
+    status = models.CharField(max_length=20, default="pending")
+    attempts = models.PositiveIntegerField(default=0)
+    available_at = models.DateTimeField(default=timezone.now)
+    started_at = models.DateTimeField(null=True)
+    completed_at = models.DateTimeField(null=True)
+    error_code = models.CharField(max_length=80, blank=True)
+    class Meta:
+        indexes = [models.Index(fields=["available_at", "status"])]

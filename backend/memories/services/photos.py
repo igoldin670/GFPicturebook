@@ -9,12 +9,13 @@ import uuid
 import warnings
 from datetime import datetime, timedelta, timezone as dt_timezone
 from pathlib import Path
+from contextlib import contextmanager
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, connection
 from django.utils import timezone
 from PIL import Image, ImageOps, ImageCms, UnidentifiedImageError
 from pillow_heif import register_heif_opener
-from memories.models import Photo, ProcessingJob
+from memories.models import Photo, ProcessingJob, StorageJob
 
 register_heif_opener()
 Image.MAX_IMAGE_PIXELS = 50_000_000
@@ -40,64 +41,114 @@ def fsync_directory(path):
         os.close(fd)
 
 
-def receive(request, identifier, filename):
-    """Persist and fsync bytes before committing the database reference.
-
-    Interrupted pre-commit files can be reconciled later; never delete originals
-    just because the database commit outcome is uncertain.
-    """
-    root = settings.PHOTO_ROOT
-    staging = root / "staging"
-    staging.mkdir(parents=True, exist_ok=True)
-    if shutil.disk_usage(root).free < settings.UPLOAD_MAX_BYTES + settings.PHOTO_FREE_RESERVE:
-        raise OSError("Insufficient storage reserve")
-    temporary = staging / f"{uuid.uuid4()}.part"
-    digest, size = hashlib.sha256(), 0
-    try:
-        with temporary.open("xb") as output:
-            while chunk := request.read(1024 * 1024):
-                size += len(chunk)
-                if size > settings.UPLOAD_MAX_BYTES:
-                    raise InvalidImage("Photo exceeds the 50 MiB limit.")
-                digest.update(chunk)
-                output.write(chunk)
-            if not size:
-                raise InvalidImage("The file is empty.")
-            output.flush()
-            os.fsync(output.fileno())
-        with transaction.atomic():
-            # Serialize each member's admission checks and idempotent retries.
-            from django.contrib.auth import get_user_model
-            get_user_model().objects.select_for_update().get(pk=request.user.pk)
-            existing = Photo.objects.filter(pk=identifier).first()
-            if existing:
-                if existing.uploaded_by_id != request.user.pk or existing.sha256 != digest.hexdigest():
-                    raise InvalidImage("Upload identifier is already used for a different file.")
-                return existing
-            if Photo.objects.filter(uploaded_by=request.user, uploaded_at__gte=timezone.now()-timedelta(minutes=1)).count() >= 60:
-                raise InvalidImage("Upload limit reached. Wait a minute before retrying.")
-            if Photo.objects.filter(status=Photo.Status.PENDING).count() >= 100:
-                raise InvalidImage("Processing queue is full. Wait before uploading more.")
-            # Extension is deliberately absent: only the decoder decides the MIME type.
-            key = f"originals/{str(identifier)[:2]}/{identifier}"
-            target = storage_path(key)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            # Hard-link is atomic and refuses to overwrite an existing original.
+@contextmanager
+def upload_destination(required):
+    from .drives import configuration, refresh_drives, drive_root
+    if configuration():
+        for drive in sorted(refresh_drives(), key=lambda d: -d.free_bytes):
+            if drive.status != 'online' or drive.free_bytes < required + settings.STORAGE_FREE_RESERVE:
+                continue
             try:
-                os.link(temporary, target)
-            except FileExistsError:
+                context = drive_root(drive)
+                root = context.__enter__()
+            except OSError:
+                continue
+            try:
+                yield root / 'album-archive', drive
+            finally:
+                context.__exit__(None, None, None)
+            return
+        raise OSError("No writable archive drive")
+    yield settings.PHOTO_ROOT.resolve(), None
+
+
+def receive(request, identifier, filename):
+    """Write one verified primary before admission; worker creates the second.
+
+    Configured archives upload directly onto a mounted drive, not the OS disk.
+    Interrupted pre-commit originals stay intact and are adopted by a safe retry.
+    Legacy installations without drive configuration keep their original layout.
+    """
+    from memories.models import StoredAsset, FileReplica
+    video = Path(filename).suffix.lower() in {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
+    maximum = settings.VIDEO_MAX_BYTES if video else settings.UPLOAD_MAX_BYTES
+    declared = int(request.headers.get("Content-Length", "0")) if hasattr(request, "headers") else 0
+    with upload_destination(declared or maximum) as (root, drive):
+        staging = root / "staging"
+        staging.mkdir(parents=True, exist_ok=True)
+        if shutil.disk_usage(root).free < (declared or maximum) + settings.PHOTO_FREE_RESERVE:
+            raise OSError("Insufficient storage reserve")
+        temporary = staging / f"{uuid.uuid4()}.part"
+        digest, size = hashlib.sha256(), 0
+        try:
+            with temporary.open("xb") as output:
+                while chunk := request.read(settings.MEDIA_BUFFER_BYTES):
+                    size += len(chunk)
+                    if size > maximum:
+                        raise InvalidImage("File exceeds the upload limit.")
+                    digest.update(chunk)
+                    output.write(chunk)
+                if not size:
+                    raise InvalidImage("The file is empty.")
+                output.flush()
+                os.fsync(output.fileno())
+            if declared and size != declared:
+                raise InvalidImage("Upload was interrupted. Retry with the same identifier.")
+            with transaction.atomic():
+                from django.contrib.auth import get_user_model
+                get_user_model().objects.select_for_update().get(pk=request.user.pk)
+                # Serialize an idempotency UUID even when two different members
+                # submit it at once. PostgreSQL releases this lock on crash.
+                if connection.vendor == 'postgresql':
+                    lock_id = int.from_bytes(identifier.bytes[:8], 'big', signed=True)
+                    with connection.cursor() as cursor:
+                        cursor.execute('SELECT pg_advisory_xact_lock(%s)', [lock_id])
+                existing = Photo.objects.filter(pk=identifier).first()
+                if existing:
+                    if existing.uploaded_by_id != request.user.pk or existing.sha256 != digest.hexdigest():
+                        raise InvalidImage("Upload identifier is already used for a different file.")
+                    return existing
+                if Photo.objects.filter(uploaded_by=request.user, uploaded_at__gte=timezone.now()-timedelta(minutes=1)).count() >= 60:
+                    raise InvalidImage("Upload limit reached. Wait a minute before retrying.")
+                if Photo.objects.filter(status=Photo.Status.PENDING).count() >= 100:
+                    raise InvalidImage("Processing queue is full. Wait before uploading more.")
+                key = f"originals/{str(identifier)[:2]}/{identifier}"
+                if drive:
+                    from .drives import asset_path
+                    # root already names album-archive; use its pinned parent.
+                    target = asset_path(root.parent, key)
+                else:
+                    target = storage_path(key)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    os.link(temporary, target)
+                except FileExistsError:
+                    with target.open("rb") as stored:
+                        if hashlib.file_digest(stored, "sha256").hexdigest() != digest.hexdigest():
+                            raise InvalidImage("An interrupted upload uses this identifier. Select the file again.")
                 with target.open("rb") as stored:
                     if hashlib.file_digest(stored, "sha256").hexdigest() != digest.hexdigest():
-                        raise InvalidImage("An interrupted upload uses this identifier. Select the file again.")
-            fsync_directory(target.parent)
-            fsync_directory(target.parent.parent)
-            photo = Photo.objects.create(id=identifier, original_filename=filename, original_key=key,
-                sha256=digest.hexdigest(), byte_size=size, mime_type="application/octet-stream",
-                uploaded_by=request.user, display_date=timezone.localdate(), date_source=Photo.DateSource.UPLOAD)
-            ProcessingJob.objects.create(photo=photo, available_at=timezone.now())
-            return photo
-    finally:
-        temporary.unlink(missing_ok=True)
+                        raise OSError("Upload verification failed")
+                parent = target.parent
+                while parent != root:
+                    fsync_directory(parent)
+                    parent = parent.parent
+                fsync_directory(root)
+                if drive:
+                    fsync_directory(root.parent)
+                photo = Photo.objects.create(id=identifier, original_filename=filename, original_key=key,
+                    sha256=digest.hexdigest(), byte_size=size, mime_type="application/octet-stream",
+                    media_kind="video" if video else "photo", uploaded_by=request.user,
+                    display_date=timezone.localdate(), date_source=Photo.DateSource.UPLOAD)
+                if drive:
+                    asset = StoredAsset.objects.create(photo=photo, variant='original', key=key,
+                        sha256=photo.sha256, byte_size=size, protection='degraded', checked_at=timezone.now())
+                    FileReplica.objects.create(asset=asset, drive=drive, state='verified', verified_at=timezone.now())
+                ProcessingJob.objects.create(photo=photo, available_at=timezone.now())
+                StorageJob.objects.create(photo=photo)
+                return photo
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def clean_text(value, limit=150):
@@ -170,7 +221,20 @@ def save_derivative(image, key, bound):
 
 
 def process(photo):
-    path = storage_path(photo.original_key)
+    from .archive import verified_source
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        source = stack.enter_context(verified_source(photo, "original"))
+        # Pillow and ffmpeg consume the already verified inode, including failover.
+        from .videos import is_video, process_video
+        if is_video(source):
+            process_video(photo, source)
+            return
+        process_image(photo, source)
+
+
+def process_image(photo, path):
+    photo.media_kind = "photo"
     with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
@@ -181,6 +245,7 @@ def process(photo):
                 if check.format not in FORMATS or (check.format != "MPO" and getattr(check, "n_frames", 1) != 1):
                     raise InvalidImage("unsupported_format")
                 check.verify()
+            path.seek(0)
             with Image.open(path) as original:
                 if original.format == "MPO":
                     original.seek(0)
@@ -211,6 +276,8 @@ def process(photo):
             raise InvalidImage("invalid_or_oversized_image") from exc
     photo.status = Photo.Status.READY
     photo.save()
+    from .archive import schedule
+    schedule(photo)
 
 
 def process_one(job_id=None):

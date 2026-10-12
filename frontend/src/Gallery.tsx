@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-type Photo = {id: string; filename: string; date: string; dateSource: string; caption: string; width: number; height: number; camera: string; latitude: string | null; longitude: string | null; thumbnail: string; preview: string; original: string};
+type Photo = {id: string; filename: string; date: string; dateSource: string; caption: string; width: number; height: number; camera: string; latitude: string | null; longitude: string | null; thumbnail: string; preview: string; original: string; kind: "photo" | "video"; duration: number | null; byteSize: number; playback: string | null};
 type Page = {photos: Photo[]; next: string | null};
 type Job = {id: string; filename: string; status: string; message: string};
 type Transfer = {id: string; file: File; progress: number; state: 'queued' | 'sending' | 'accepted' | 'error'; error?: string};
@@ -18,7 +18,7 @@ function uploadFile(item: Transfer, csrf: string, signal: AbortSignal, progress:
     xhr.setRequestHeader('X-CSRFToken', csrf);
     xhr.setRequestHeader('Idempotency-Key', item.id);
     xhr.setRequestHeader('X-Filename', encodeURIComponent(item.file.name));
-    xhr.timeout = 120000;
+    xhr.timeout = 0; // Large videos may take time; users can still cancel by leaving.
     xhr.upload.onprogress = event => {if (event.lengthComputable) progress(Math.round(event.loaded / event.total * 100));};
     const abort = () => xhr.abort();
     signal.addEventListener('abort', abort, {once:true});
@@ -26,7 +26,7 @@ function uploadFile(item: Transfer, csrf: string, signal: AbortSignal, progress:
     xhr.onload = () => {
       if (xhr.status === 202) resolve();
       else {
-        let message = xhr.status === 413 ? 'This photo is too large (maximum 50 MiB).' : 'Upload failed. Refresh your session and retry.';
+        let message = xhr.status === 413 ? 'This file exceeds the upload limit.' : 'Upload failed. Refresh your session and retry.';
         try {message = JSON.parse(xhr.responseText).error || message;} catch { /* Proxy errors may not be JSON. */ }
         reject(new Error(message));
       }
@@ -40,6 +40,10 @@ function uploadFile(item: Transfer, csrf: string, signal: AbortSignal, progress:
 }
 const readableDate = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'});
 
+const durationLabel = (seconds: number | null) => {const total = Math.floor(seconds || 0); return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;};
+const fileSize = (bytes: number) => bytes >= 1024**3 ? `${(bytes / 1024**3).toFixed(1)} GiB` : `${(bytes / 1024**2).toFixed(1)} MiB`;
+const videoFile = (file: File) => /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(file.name);
+
 function PhotoDetail({photo, csrf, close, saved}: {photo: Photo; csrf: string; close: () => void; saved: () => void}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [caption, setCaption] = useState(photo.caption);
@@ -52,7 +56,7 @@ function PhotoDetail({photo, csrf, close, saved}: {photo: Photo; csrf: string; c
     try {await api(`/api/photos/${photo.id}/edit/`, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({caption,date})}); saved(); close();}
     catch(e) {setError((e as Error).message);} finally {setBusy(false);}
   }
-  return <dialog ref={dialog} className="photo-dialog" onCancel={close} aria-labelledby="detail-heading"><button className="close-photo" onClick={close} aria-label="Close photo">×</button><img className="detail-image" src={photo.preview} alt={photo.caption || photo.filename}/><div className="detail-content"><p className="eyebrow">A MOMENT TO KEEP</p><h2 id="detail-heading">{readableDate(photo.date)}</h2><form onSubmit={save}><label htmlFor="photo-date">Date taken</label><input id="photo-date" type="date" value={date} onChange={event => setDate(event.target.value)} required/><p className="field-note">Date source: {photo.dateSource === 'upload' ? 'Upload date — no usable capture date found' : photo.dateSource === 'manual' ? 'Manually edited' : 'Camera metadata'}</p><label htmlFor="photo-caption">A few words about this day</label><textarea id="photo-caption" value={caption} maxLength={5000} onChange={event => setCaption(event.target.value)} placeholder="What do you want to remember?"/><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save this memory'}</button></form>{error && <p role="alert" className="error">{error}</p>}<dl className="photo-facts"><dt>Original size</dt><dd>{photo.width} × {photo.height}</dd>{photo.camera && <><dt>Camera</dt><dd>{photo.camera}</dd></>}{photo.latitude !== null && photo.longitude !== null && <><dt>GPS coordinates</dt><dd>{photo.latitude}, {photo.longitude}</dd></>}</dl><a className="original-link" href={photo.original}>Download unchanged original ↗</a><p className="field-note">Originals may include location metadata.</p></div></dialog>;
+  return <dialog ref={dialog} className="photo-dialog" onCancel={close} aria-labelledby="detail-heading"><button className="close-photo" onClick={close} aria-label="Close memory">×</button>{photo.kind === 'video' ? <div className="video-stage">{photo.playback ? <video className="detail-video" controls playsInline preload="metadata" poster={photo.thumbnail} src={photo.playback} aria-label={photo.caption || photo.filename}/> : <><img className="detail-image" src={photo.thumbnail} alt={photo.caption || photo.filename}/><p>Download the original to play this format.</p></>}</div> : <img className="detail-image" src={photo.preview} alt={photo.caption || photo.filename}/>}<div className="detail-content"><p className="eyebrow">A MOMENT TO KEEP</p><h2 id="detail-heading">{readableDate(photo.date)}</h2><form onSubmit={save}><label htmlFor="photo-date">Date taken</label><input id="photo-date" type="date" value={date} onChange={event => setDate(event.target.value)} required/><p className="field-note">Date source: {photo.dateSource === 'upload' ? 'Upload date — no usable capture date found' : photo.dateSource === 'manual' ? 'Manually edited' : 'Camera metadata'}</p><label htmlFor="photo-caption">A few words about this day</label><textarea id="photo-caption" value={caption} maxLength={5000} onChange={event => setCaption(event.target.value)} placeholder="What do you want to remember?"/><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save this memory'}</button></form>{error && <p role="alert" className="error">{error}</p>}<dl className="photo-facts"><dt>Resolution</dt><dd>{photo.width} × {photo.height}</dd><dt>File size</dt><dd>{fileSize(photo.byteSize)}</dd>{photo.kind === "video" && <><dt>Duration</dt><dd>{durationLabel(photo.duration)}</dd></>}{photo.camera && <><dt>Camera</dt><dd>{photo.camera}</dd></>}{photo.latitude !== null && photo.longitude !== null && <><dt>GPS coordinates</dt><dd>{photo.latitude}, {photo.longitude}</dd></>}</dl><a className="original-link" href={photo.original}>Download unchanged original ↗</a><p className="field-note">Originals may include location metadata.</p></div></dialog>;
 }
 
 export default function Gallery({csrf, changed}: {csrf: string; changed: () => void}) {
@@ -107,7 +111,7 @@ export default function Gallery({csrf, changed}: {csrf: string; changed: () => v
       if (abort.signal.aborted) break;
       update(item.id, {state:'sending',error:undefined});
       try {
-        if (item.file.size > 50*1024*1024) throw new Error('Photo exceeds the 50 MiB limit.');
+        if (!videoFile(item.file) && item.file.size > 50*1024*1024) throw new Error('Photo exceeds the 50 MiB limit.');
         await uploadFile(item, csrf, abort.signal, percent => update(item.id,{progress:percent}));
         update(item.id,{state:'accepted',progress:100}); pendingRef.current = true;
         void poll();
@@ -118,18 +122,17 @@ export default function Gallery({csrf, changed}: {csrf: string; changed: () => v
   }
   function choose(files: FileList | null) {
     if (!files || busyRef.current) return;
-    if (files.length > 100) {setError('Choose up to 100 photos per batch.'); return;}
+    if (files.length > 100) {setError('Choose up to 100 photos or videos per batch.'); return;}
     const items: Transfer[] = Array.from(files).map(file => ({id:crypto.randomUUID(),file,progress:0,state:'queued'}));
     setTransfers(items); void send(items);
   }
-  return <section className="library"><div className="library-heading"><div><p className="eyebrow">OUR GROWING COLLECTION</p><h2>Little moments, kept.</h2></div><button className="button" disabled={uploading} onClick={() => picker.current?.click()}>＋ Add photos</button></div><input className="file-picker" ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple onChange={event => {choose(event.target.files); event.target.value='';}} aria-label="Choose photos"/>
-    <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => {event.preventDefault();setDragging(true);}} onDragLeave={() => setDragging(false)} onDrop={event => {event.preventDefault();setDragging(false);choose(event.dataTransfer.files);}}><span>♡</span><p>Bring a little of your world here.</p><button className="quiet" disabled={uploading} onClick={() => picker.current?.click()}>Choose photos <span className="desktop">or drag them here</span></button><small>JPEG, PNG, WebP & HEIC · up to 50 MiB each · originals kept unchanged</small></div>
-    <p className="backup-note">Backups are not automatic yet. Please keep another copy of every photo you upload.</p>
+  return <section className="library"><div className="library-heading"><div><p className="eyebrow">OUR GROWING COLLECTION</p><h2>Little moments, kept.</h2></div><button className="button" disabled={uploading} onClick={() => picker.current?.click()}>＋ Add memories</button></div><input className="file-picker" ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/quicktime,video/webm,.mp4,.mov,.mkv,.webm,.avi,.m4v" multiple onChange={event => {choose(event.target.files); event.target.value='';}} aria-label="Choose photos or videos"/>
+    <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => {event.preventDefault();setDragging(true);}} onDragLeave={() => setDragging(false)} onDrop={event => {event.preventDefault();setDragging(false);choose(event.dataTransfer.files);}}><span>♡</span><p>Bring a little of your world here.</p><button className="quiet" disabled={uploading} onClick={() => picker.current?.click()}>Choose photos or videos <span className="desktop">or drag them here</span></button><small>Photos up to 50 MiB · MP4, MOV, MKV, WebM, AVI & M4V videos · originals kept unchanged</small></div>
     {transfers.length > 0 && <details className="upload-progress" open><summary>Uploads · {transfers.filter(t => t.state === 'accepted').length} of {transfers.length} received</summary><ul>{transfers.map(item => <li key={item.id}><span>{item.file.name}</span><span>{item.state === 'sending' ? `${item.progress}%` : item.state === 'accepted' ? 'Received — processing separately' : item.state === 'error' ? item.error : 'Queued'}</span>{item.state === 'sending' && <progress max={100} value={item.progress} aria-label={`Uploading ${item.file.name}`}/>}</li>)}</ul>{transfers.some(item => item.state === 'error') && <button className="quiet" disabled={uploading} onClick={() => void send(transfers.filter(t => t.state === 'error'))}>Retry unsuccessful uploads</button>}{!uploading && <button className="quiet" onClick={() => setTransfers([])}>Dismiss upload progress</button>}</details>}
     {jobs.length > 0 && <details className="processing-status" open={jobs.some(j => j.status !== 'failed')}><summary>{jobs.filter(j => j.status !== 'failed').length} processing · {jobs.filter(j => j.status === 'failed').length} unable to process</summary><ul>{jobs.map(job => <li key={job.id}><strong>{job.filename}</strong><span>{job.message}</span></li>)}</ul></details>}
     {error && <p className="error" role="alert">{error} <button className="quiet" onClick={() => void load()}>Refresh</button></p>}
-    <div className="photo-grid">{photos.map((photo,index) => <div className="memory-cell" key={photo.id}>{(index === 0 || photo.date !== photos[index-1].date) && <p className="date-divider">{readableDate(photo.date)}</p>}<button className="photo-card" onClick={() => setSelected(photo)}><img loading="lazy" decoding="async" src={photo.thumbnail} alt={photo.caption || photo.filename}/><span>{photo.caption || readableDate(photo.date)}</span></button></div>)}</div>
-    {loading && <p role="status">Gathering our moments…</p>}{!loading && photos.length === 0 && <p className="empty-library">The first page is waiting for you. Add a photo to begin.</p>}{next && <button className="button load-more" disabled={loading} onClick={() => void load(next)}>More memories ↓</button>}
+    <div className="photo-grid">{photos.map((photo,index) => <div className="memory-cell" key={photo.id}>{(index === 0 || photo.date !== photos[index-1].date) && <p className="date-divider">{readableDate(photo.date)}</p>}<button className={`photo-card ${photo.kind === 'video' ? 'video-polaroid' : ''}`} onClick={() => setSelected(photo)} aria-label={`${photo.kind === 'video' ? 'Play video' : 'Open photo'}: ${photo.caption || photo.filename}`}><div className="polaroid-image"><img loading="lazy" decoding="async" src={photo.thumbnail} alt={photo.caption || photo.filename}/>{photo.kind === 'video' && <><span className="polaroid-play" aria-hidden="true">▷</span><span className="polaroid-duration">{durationLabel(photo.duration)}</span><span className="polaroid-film" aria-hidden="true">▥</span></>}</div><span>{photo.caption || readableDate(photo.date)}</span></button></div>)}</div>
+    {loading && <p role="status">Gathering our moments…</p>}{!loading && photos.length === 0 && <p className="empty-library">The first page is waiting for you. Add a photo or video to begin.</p>}{next && <button className="button load-more" disabled={loading} onClick={() => void load(next)}>More memories ↓</button>}
     {selected && <PhotoDetail key={selected.id} photo={selected} csrf={csrf} close={() => setSelected(null)} saved={() => {void load();changedRef.current();}}/>}
   </section>;
 }

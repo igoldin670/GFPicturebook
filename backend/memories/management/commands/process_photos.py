@@ -3,10 +3,12 @@ import os
 import subprocess
 import sys
 import time
+import signal
 from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections, transaction
 from django.utils import timezone
+from django.conf import settings
 from memories.models import Photo, ProcessingJob
 
 class Command(BaseCommand):
@@ -18,8 +20,11 @@ class Command(BaseCommand):
         if options["job"]:
             # Resource limits are applied before native image libraries are imported.
             import resource
-            resource.setrlimit(resource.RLIMIT_AS, (1536 * 1024**2, 1536 * 1024**2))
-            resource.setrlimit(resource.RLIMIT_CPU, (60, 60))
+            video = ProcessingJob.objects.get(pk=options["job"]).photo.media_kind == "video"
+            memory = (settings.MEDIA_WORKER_MEMORY_MIB if video else 2048) * 1024**2
+            cpu = settings.VIDEO_TIMEOUT_SECONDS if video else 60
+            resource.setrlimit(resource.RLIMIT_AS, (memory, memory))
+            resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
             from memories.services.photos import process_one
             process_one(options["job"])
             return
@@ -31,11 +36,23 @@ class Command(BaseCommand):
                     return
                 time.sleep(2)
                 continue
+            process = subprocess.Popen([sys.executable, str(settings.BASE_DIR / "manage.py"), "process_photos", "--job", str(job_id)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
             try:
-                result = subprocess.run([sys.executable, "manage.py", "process_photos", "--job", str(job_id)], timeout=90, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                crashed = result.returncode != 0
+                video = Photo.objects.get(processingjob__pk=job_id).media_kind == "video"
+                process.wait(timeout=settings.VIDEO_TIMEOUT_SECONDS + 120 if video else 90)
+                crashed = process.returncode != 0
             except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
                 crashed = True
+            finally:
+                # Include FFmpeg descendants, including when the decoder itself
+                # was killed by an OOM or CPU limit. Never leave orphan encoders.
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
             if crashed:
                 # Native decoder crashes roll back their transaction. Bound retries here.
                 with transaction.atomic():

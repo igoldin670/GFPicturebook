@@ -10,7 +10,15 @@ class Command(BaseCommand):
         root = settings.PHOTO_ROOT
         expected = set(Photo.objects.values_list('original_key', flat=True))
         actual = {str(path.relative_to(root)) for path in (root/'originals').glob('*/*') if path.is_file()}
-        missing, orphaned = expected - actual, actual - expected
+        archived = set()
+        from memories.services.archive import verified_source
+        for photo in Photo.objects.filter(original_key__in=expected - actual).iterator():
+            try:
+                with verified_source(photo, 'original'):
+                    archived.add(photo.original_key)
+            except (OSError, ValueError):
+                pass
+        missing, orphaned = expected - actual - archived, actual - expected
         self.stdout.write(f'{len(missing)} missing originals; {len(orphaned)} unreferenced originals; {len(list((root/"staging").glob("*.part")))} staged files.')
         for key in sorted(missing):
             self.stdout.write(f'MISSING {key}')

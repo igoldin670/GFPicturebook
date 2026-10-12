@@ -10,3 +10,5 @@ data/
 backups/
 .coverage
 *.tsbuildinfo
+config/drives.json
+compose.archive.yaml

@@ -1,0 +1,6 @@
+[
+  {"uuid": "REPLACE_WITH_FILESYSTEM_UUID_1", "label": "Archive 1", "path": "/drives/one"},
+  {"uuid": "REPLACE_WITH_FILESYSTEM_UUID_2", "label": "Archive 2", "path": "/drives/two"},
+  {"uuid": "REPLACE_WITH_FILESYSTEM_UUID_3", "label": "Archive 3", "path": "/drives/three"},
+  {"uuid": "62fba36b-4bd5-46be-8e8e-b20149db4e02", "label": "Linux system disk (monitor only)", "path": "/drives/os", "excluded": true}
+]

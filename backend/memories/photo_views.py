@@ -1,13 +1,15 @@
 """Same-origin, session-authenticated photo endpoints. No public media URLs."""
 import json
 import uuid
+import re
+from pathlib import Path
 from datetime import date
 from functools import wraps
 from urllib.parse import unquote
 from django.conf import settings
 from django.core import signing
 from django.db.models import Q
-from django.http import FileResponse, JsonResponse, Http404
+from django.http import FileResponse, JsonResponse, Http404, StreamingHttpResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 from memories.models import Photo
@@ -30,6 +32,8 @@ def visible():
 def serialize(photo):
     return {"id": str(photo.id), "filename": photo.original_filename, "date": photo.display_date.isoformat(),
             "dateSource": photo.date_source, "caption": photo.caption, "width": photo.width, "height": photo.height,
+            "kind": photo.media_kind, "duration": photo.duration, "byteSize": photo.byte_size,
+            "playback": f"/api/photos/{photo.id}/stream/" if photo.playback_mime else None,
             "camera": " ".join(filter(None, [photo.camera_make, photo.camera_model])),
             "latitude": str(photo.latitude) if photo.latitude is not None else None,
             "longitude": str(photo.longitude) if photo.longitude is not None else None,
@@ -41,17 +45,18 @@ def serialize(photo):
 @member
 def upload(request):
     if request.content_type != "application/octet-stream":
-        return JsonResponse({"error": "Send one binary photo per request."}, status=415)
+        return JsonResponse({"error": "Send one binary media file per request."}, status=415)
     try:
         identifier = uuid.UUID(request.headers.get("Idempotency-Key", ""))
         length = int(request.headers.get("Content-Length", "0"))
     except (ValueError, TypeError):
         return JsonResponse({"error": "Invalid upload identifier or length."}, status=400)
-    if length > settings.UPLOAD_MAX_BYTES:
-        return JsonResponse({"error": "Photos must be at most 50 MiB."}, status=413)
     filename = unquote(request.headers.get("X-Filename", "photo"))
     filename = filename.replace("\\", "/").split("/")[-1]
     filename = "".join(c for c in filename if c.isprintable())[:255] or "photo"
+    maximum = settings.VIDEO_MAX_BYTES if Path(filename).suffix.lower() in {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"} else settings.UPLOAD_MAX_BYTES
+    if length < 0 or length > maximum:
+        return JsonResponse({"error": "File exceeds the upload limit."}, status=413)
     try:
         photo = receive(request, identifier, filename)
     except InvalidImage as exc:
@@ -84,22 +89,83 @@ def gallery(request):
 def upload_status(request):
     rows = Photo.objects.filter(uploaded_by=request.user, trashed_at__isnull=True).exclude(status=Photo.Status.READY).order_by("-uploaded_at")[:100]
     return JsonResponse({"uploads": [{"id": str(p.id), "filename": p.original_filename, "status": p.status,
-        "message": "Unable to process this file. Unsupported, damaged, oversized, or a processing failure; your uploaded bytes are retained." if p.status == Photo.Status.FAILED else "Waiting for photo processing…"} for p in rows]})
+        "message": "Unable to process this file. Unsupported, damaged, oversized, or a processing failure; your uploaded bytes are retained." if p.status == Photo.Status.FAILED else "Preparing this memory…"} for p in rows]})
+
+
+def byte_range(value, size):
+    match = re.fullmatch(r"bytes=(\d*)-(\d*)", value)
+    if not match or not any(match.groups()) or size <= 0:
+        raise ValueError()
+    first, last = match.groups()
+    if not first:
+        suffix = int(last)
+        if suffix <= 0:
+            raise ValueError()
+        return max(0, size - suffix), size - 1
+    start = int(first)
+    end = min(int(last), size - 1) if last else size - 1
+    if start >= size or end < start:
+        raise ValueError()
+    return start, end
 
 
 @require_GET
 @member
 def media(request, identifier, variant):
     photo = get_object_or_404(visible(), pk=identifier)
-    if variant not in {"thumbnail", "preview", "original"}:
+    if variant not in {"thumbnail", "preview", "original", "stream"}:
         raise Http404
-    key = {"thumbnail": photo.thumbnail_key, "preview": photo.preview_key, "original": photo.original_key}[variant]
+    if variant == "stream" and (photo.media_kind != "video" or not photo.playback_mime):
+        raise Http404
+    actual = ("playback" if photo.playback_key else "original") if variant == "stream" else variant
+    from memories.services.archive import verified_source
+    from memories.services.cache import media_source
+    context = None
     try:
-        source = storage_path(key).open("rb")
+        source = media_source(photo, actual)
+        if source is None:
+            context = verified_source(photo, actual)
+            source = context.__enter__()
+        source.seek(0, 2)
+        size = source.tell()
+        source.seek(0)
     except (OSError, ValueError):
         raise Http404
-    return FileResponse(source, content_type=photo.mime_type if variant == "original" else "image/webp",
-                        as_attachment=variant == "original", filename=photo.original_filename if variant == "original" else f"{photo.id}.webp")
+    def release():
+        source.close()
+        if context is not None:
+            context.__exit__(None, None, None)
+    content_type = photo.playback_mime if variant == "stream" else photo.mime_type if variant == "original" else "image/webp"
+    if variant == "stream" and request.headers.get("Range"):
+        try:
+            start, end = byte_range(request.headers["Range"], size)
+        except ValueError:
+            release()
+            response = HttpResponse(status=416)
+            response["Content-Range"] = f"bytes */{size}"
+            return response
+        source.seek(start)
+        def chunks():
+            remaining = end - start + 1
+            try:
+                while remaining:
+                    chunk = source.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+            finally:
+                release()
+        response = StreamingHttpResponse(chunks(), status=206, content_type=content_type)
+        response._resource_closers.append(release)
+        response["Content-Range"] = f"bytes {start}-{end}/{size}"
+        response["Content-Length"] = str(end - start + 1)
+    else:
+        response = FileResponse(source, content_type=content_type, as_attachment=variant == "original",
+            filename=photo.original_filename if variant == "original" else f"{photo.id}.mp4" if variant == "stream" else f"{photo.id}.webp")
+        response._resource_closers.append(release)
+    response["Accept-Ranges"] = "bytes" if variant == "stream" else "none"
+    return response
 
 
 @require_POST

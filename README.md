@@ -2,7 +2,9 @@
 
 A private, self-hosted picture book for two. Warm ivory, sage, quiet typography, and a focus on your photographs.
 
-**Increment 2 is implemented:** secure accounts, single/multiple photo uploads and desktop drag-and-drop, background processing for JPEG/PNG/WebP/HEIC, unchanged originals, EXIF dates/camera/GPS/orientation, private thumbnails/previews/downloads, a paginated chronological gallery, and caption/date editing. Picture-book navigation, richer album/favorites UI, timeline/search, Trash actions, PWA installation, and automatic backups are still planned. Keep an independent copy of every photo.
+**Media archive update:** video polaroids, authenticated seeking/playback, FFmpeg thumbnails/compatible previews, verified redundant-drive storage, repair/integrity workers and an admin-only storage dashboard are implemented. [Configure the archive safely](docs/media-archive.md); redundancy requires existing mounted filesystems and is not active until configured.
+
+**Photo functionality:** secure accounts, single/multiple photo uploads and desktop drag-and-drop, background processing for JPEG/PNG/WebP/HEIC, unchanged originals, EXIF dates/camera/GPS/orientation, private thumbnails/previews/downloads, a paginated chronological gallery, and caption/date editing. Picture-book navigation, richer album/favorites UI, timeline/search, Trash actions, PWA installation and offsite/versioned backups are still planned. Keep an independent copy of every photo.
 
 **Already running increment 1? Follow [the server upgrade and photo test guide](docs/photo-uploads.md).** Keep your existing `.env` and accounts.
 
@@ -63,7 +65,7 @@ export PHOTO_ROOT="$PWD/data/photos"
 .venv/bin/python backend/manage.py runserver 127.0.0.1:8000
 ```
 
-In another terminal: `npm run dev --prefix frontend`. Run the worker in a third terminal with the same environment loaded: `cd backend && ../.venv/bin/python manage.py process_photos`. PostgreSQL is required for concurrent workers; SQLite is only for single-worker local development. Open http://localhost:5173. Vite proxies `/api/` and `/admin/` to Django; the React page is served by Vite in development. Do not use Django's root URL in this mode: its frontend template is assembled in the production Docker build.
+In another terminal: `npm run dev --prefix frontend`. Install FFmpeg/ffprobe for video processing. Run the worker in a third terminal with the same environment loaded: `cd backend && ../.venv/bin/python manage.py process_photos`. PostgreSQL is required for concurrent workers; SQLite is only for single-worker local development. Run storage maintenance in another terminal with the same environment: `cd backend && ../.venv/bin/python manage.py maintain_archive`. Open http://localhost:5173. Vite proxies `/api/` and `/admin/` to Django; the React page is served by Vite in development. Do not use Django's root URL in this mode: its frontend template is assembled in the production Docker build.
 
 ```sh
 # With the environment loaded as above:

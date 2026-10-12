@@ -1,3 +1,19 @@
+# Redundant media archive — 2026-10-12
+
+- Final source: **all 68 backend tests passed on PostgreSQL**, including simultaneous archive workers and cross-member UUID upload collisions; the test database was removed successfully.
+- SQLite: 66 tests passed, with the two PostgreSQL-only row-lock tests explicitly skipped.
+- TypeScript/Vite production build and migration drift check passed. Updated FFmpeg-enabled Docker image built, migrations completed, and web, decoder, archive worker, PostgreSQL and Caddy started. Final container source hashes matched the checkout.
+- Chromium against the real Caddy/Gunicorn stack uploaded synthetic photo/video files through the UI; the actual supervised worker processed them. Native video decoding, playback, seeking and fullscreen passed. Original video download was byte-identical; caption editing worked.
+- Member storage API/dashboard access returned 403; administrator access succeeded. The guest gallery contained no storage details. A 390 px phone viewport had no horizontal overflow. Desktop gallery, video lightbox, phone gallery and admin dashboard screenshots were inspected/generated. No JavaScript page errors were recorded.
+- Temporary-storage tests cover verified two-copy placement, same-physical-drive rejection, offline failover/rebuild, corrupted replicas and sources, full drives, write/read-back errors, incomplete uploads, primary/replication publication before a database crash, gradual existing-photo adoption, all requested video containers with real FFmpeg conversion, and byte-range authorization.
+- Synthetic browser accounts/media were removed after validation; real media was not accessed or modified.
+
+**Deployment limits:** the supplied server's three archive partitions report “Storage pool” partition labels but no recognized filesystem UUIDs/mounts. Real physical-drive redundancy is not active or validated. No disks were formatted, repartitioned or erased. SMART diagnostics, actual host unplug/remount behavior, very large-video throughput and offsite/database backup restoration were not tested. The OS disk is excluded in the example configuration. See [media archive deployment](media-archive.md).
+
+Earlier verification follows for history.
+
+---
+
 # iPhone MPO compatibility fix
 
 Docker rebuild/startup succeeded and all 41 tests passed on PostgreSQL and SQLite.

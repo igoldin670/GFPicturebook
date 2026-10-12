@@ -49,9 +49,21 @@ services:
     <<: *app
     restart: unless-stopped
     command: [python, manage.py, process_photos]
-    mem_limit: 2g
-    cpus: 1.0
+    mem_limit: 10g
+    cpus: 2.0
     pids_limit: 64
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      storage: {condition: service_completed_successfully}
+    volumes:
+      - ${DATA_DIR:-./data}/photos:/photos
+  archive:
+    <<: *app
+    restart: unless-stopped
+    command: [python, manage.py, maintain_archive]
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 32
     depends_on:
       migrate: {condition: service_completed_successfully}
       storage: {condition: service_completed_successfully}
