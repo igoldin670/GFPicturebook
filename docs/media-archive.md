@@ -113,3 +113,18 @@ Drive observations update about every 10 seconds. Integrity checks are periodic 
 Automated tests use temporary simulated drives; the simulation flag cannot be enabled by an environment variable in production. Tests cover two distinct verified copies, same-physical-drive rejection, all six containers/real FFmpeg previews, byte-range seeking and downloads, offline failover, rebuilds, corrupt sources/destinations, full drives, I/O failures, failed read-back verification, publication-before-commit recovery, original upload/decoder rollback, guest/admin/CSRF enforcement, and existing-photo adoption. PostgreSQL-only tests exercise simultaneous replication workers and cross-member upload UUID collisions; they are explicitly skipped on SQLite.
 
 For a manual UI check, upload synthetic/test media, open a video polaroid, play and seek it, use fullscreen, edit its caption/date and download the original. Check a phone-sized viewport and keyboard navigation. In admin, confirm two verified physical replicas for each asset. Disconnects/corruption/full-disk scenarios should be run only with temporary simulated storage, not by damaging real media or filling your actual drives.
+
+
+## Website startup after host setup
+
+A permission correction was added to the setup helper: the generated drive manifest must be readable by container group 10001. If you already ran the older helper, **do not rerun formatting**. Correct only the existing configuration file and restart:
+
+```sh
+sudo chgrp 10001 config/drives.json
+sudo chmod 640 config/drives.json
+docker compose -f compose.yaml -f compose.archive.yaml up -d
+docker compose -f compose.yaml -f compose.archive.yaml ps -a
+curl -I http://127.0.0.1:8080/
+```
+
+The website listens only on the server's loopback interface. In a remote desktop browser running on the server, use `http://localhost:8080`. In your own computer's browser, use the configured Tailscale HTTPS address or an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 basement@SERVER_IP`), then browse `http://localhost:8080`. A refusal/blank page must be diagnosed using container status and logs before changing network exposure. Do not regenerate `.env`, delete `data/`, or format any drives as a website-startup fix.

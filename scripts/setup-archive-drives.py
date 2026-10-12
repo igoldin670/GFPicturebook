@@ -100,13 +100,16 @@ def preflight():
     return fstab
 
 
-def write_new(path, text, mode=0o640):
+def write_new(path, text, mode=0o640, app_readable=False):
     with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode), 'w') as output:
         output.write(text)
+        os.fchmod(output.fileno(), mode)  # Ensure group read even under a restrictive sudo umask.
         output.flush()
         os.fsync(output.fileno())
     owner = REPO.stat()
-    os.chown(path, owner.st_uid, owner.st_gid)
+    # The container runs as group 10001. Preserve the host owner while granting
+    # that group read access; do not make storage configuration world-readable.
+    os.chown(path, owner.st_uid, 10001 if app_readable else owner.st_gid)
 
 
 def apply(selected, fstab):
@@ -185,7 +188,7 @@ def apply(selected, fstab):
             os.close(directory)
     finally:
         Path(name).unlink(missing_ok=True)
-    write_new(REPO / 'config/drives.json', json.dumps(manifests, indent=2) + '\n')
+    write_new(REPO / 'config/drives.json', json.dumps(manifests, indent=2) + '\n', app_readable=True)
     write_new(REPO / 'compose.archive.yaml', (REPO / 'compose.archive.example.yaml').read_text())
     print(f'Setup complete. Recovery inventory and original fstab: {backup}')
     print('Existing .env and data/ were untouched. No partition tables or OS-disk filesystems were changed.')

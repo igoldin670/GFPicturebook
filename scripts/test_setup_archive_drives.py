@@ -2,6 +2,7 @@
 import copy
 import importlib.util
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -78,6 +79,15 @@ class DriveSetupSafetyTests(unittest.TestCase):
             with self.assertRaises(RuntimeError): setup.apply(self.targets(),'fstab')
             run.assert_not_called()
             mkdir.assert_not_called()
+
+    def test_manifest_is_readable_by_container_group_without_world_access(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'drives.json'
+            with patch.object(setup, 'REPO', Path(temporary)), patch.object(setup.os, 'chown') as chown:
+                setup.write_new(path, '[]\n', app_readable=True)
+                chown.assert_called_once_with(path, Path(temporary).stat().st_uid, 10001)
+            self.assertEqual(path.read_text(), '[]\n')
+            self.assertEqual(path.stat().st_mode & 0o777, 0o640)
 
 if __name__ == '__main__':
     unittest.main()
