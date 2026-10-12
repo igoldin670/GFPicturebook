@@ -7,6 +7,7 @@ urlpatterns = [path("admin/storage/", storage_views.dashboard), path("admin/stor
 urlpatterns += [
     path("api/photos/", photo_views.gallery),
     path("api/photos/upload/", photo_views.upload),
+    path("api/photos/limits/", photo_views.upload_limits),
     path("api/photos/uploads/", photo_views.upload_status),
     path("api/photos/<uuid:identifier>/edit/", photo_views.edit),
     path("api/photos/<uuid:identifier>/<str:variant>/", photo_views.media),

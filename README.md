@@ -124,3 +124,6 @@ See [verification results and limits](docs/verification.md) for checks actually 
 ## Maintenance
 
 Track this source in Git; keep `.env`, photo storage, databases, and backups outside Git. Review dependencies monthly and promptly apply security releases. Regenerate `requirements.lock` in a clean virtual environment after updating direct constraints; run the tests and image build before upgrading the server. Pin deployed image digests after testing a release. Read the backup plan before the first real import.
+
+
+For larger camera photos, videos and multi-user batches, see [configurable upload limits and worker bounds](docs/media-archive.md#larger-files-and-upload-batches). Photo/video byte caps can be disabled independently; the default shared ceiling is 100 GiB.

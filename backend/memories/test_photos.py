@@ -253,3 +253,29 @@ class PhotoTests(TestCase):
             self.assertGreater(red, 200)
             self.assertLess(blue, 40)
             self.assertFalse(preview.getexif())
+
+    def test_photo_cap_can_be_disabled_for_original_over_50_mib(self):
+        # Valid JPEG with preserved trailing bytes exercises the real 50 MiB
+        # boundary without allocating a huge decoded image or touching real drives.
+        data = picture() + b'\0' * (51 * 1024**2)
+        with override_settings(UPLOAD_MAX_BYTES=50 * 1024**2):
+            self.assertEqual(self.upload(data).status_code,413)
+        with override_settings(UPLOAD_MAX_BYTES=0):
+            photo = self.ready(data)
+        self.assertEqual(photo.status,'ready')
+        self.assertEqual(photo.byte_size,len(data))
+        self.assertEqual(photo.sha256,hashlib.sha256(data).hexdigest())
+        with storage_path(photo.original_key).open('rb') as source:
+            self.assertEqual(hashlib.file_digest(source,'sha256').hexdigest(),photo.sha256)
+
+    def test_disabled_photo_cap_still_enforces_shared_request_ceiling(self):
+        with override_settings(UPLOAD_MAX_BYTES=0,MEDIA_REQUEST_MAX_BYTES=10):
+            self.assertEqual(self.upload(b'x'*11).status_code,413)
+        self.assertEqual(Photo.objects.count(),0)
+
+    def test_upload_limits_follow_configuration_and_require_login(self):
+        with override_settings(UPLOAD_MAX_BYTES=0,MEDIA_REQUEST_MAX_BYTES=100):
+            self.assertEqual(self.client.get('/api/photos/limits/').json(),
+                {'photoMaxBytes':None,'videoMaxBytes':100,'requestMaxBytes':100,'batchMaxFiles':1000})
+        self.client.logout()
+        self.assertEqual(self.client.get('/api/photos/limits/').status_code,401)

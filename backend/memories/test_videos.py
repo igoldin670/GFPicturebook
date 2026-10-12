@@ -109,3 +109,18 @@ class VideoTests(TestCase):
         self.assertEqual(photo.status,'failed')
         self.assertTrue(storage_path(photo.original_key).exists())
         self.assertEqual(self.client.get(f'/api/photos/{photo.id}/stream/').status_code,404)
+
+    def test_video_cap_can_be_disabled_without_disabling_shared_ceiling(self):
+        data = self.video()
+        with override_settings(VIDEO_MAX_BYTES=10):
+            response = self.client.post('/api/photos/upload/',data,content_type='application/octet-stream',
+                HTTP_X_CSRFTOKEN=self.token,HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()),HTTP_X_FILENAME='clip.mp4')
+            self.assertEqual(response.status_code,413)
+        with override_settings(VIDEO_MAX_BYTES=0):
+            photo = self.upload(data)
+        self.assertEqual(photo.status,'ready')
+        self.assertEqual(storage_path(photo.original_key).read_bytes(),data)
+        with override_settings(VIDEO_MAX_BYTES=0,MEDIA_REQUEST_MAX_BYTES=10):
+            response = self.client.post('/api/photos/upload/',data,content_type='application/octet-stream',
+                HTTP_X_CSRFTOKEN=self.token,HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()),HTTP_X_FILENAME='clip.mp4')
+            self.assertEqual(response.status_code,413)

@@ -1,3 +1,14 @@
+# Configurable limits and larger upload batches — 2026-10-12
+
+- **All 75 backend tests passed on PostgreSQL**, including a JPEG original over 50 MiB with its separate cap disabled, independently disabled video caps, the shared ceiling, decoder claim expiry/recovery and simultaneous member admission into a bounded queue.
+- TypeScript/Vite build passed. The validation image reused the previously verified FFmpeg/dependency layers and loaded the updated backend and built frontend. Caddy adaptation confirmed its configurable 100 GiB upload ceiling and retained 64 KB non-upload ceiling.
+- Real Chromium UI upload of a photo over 50 MiB succeeded. Twelve simultaneous authenticated upload requests were accepted and processed by the bounded photo/video supervisor. The UI/backend reported the configured ceiling and 1,000-file batch limit.
+- Native video playback, seeking/fullscreen, unchanged original download, caption editing, member/admin storage authorization and phone viewport checks remained successful, with no JavaScript page errors.
+- Browser functional assertions completed successfully; synthetic cleanup initially raced with the archive worker's job creation. The local archive worker was paused only for cleanup, all synthetic accounts/media were removed, then it was restarted.
+- SQLite storage/queue checks passed (21 checks; three PostgreSQL-only tests skipped). An earlier full SQLite run passed all 72 non-PostgreSQL tests. No schema migration or new dependency was needed.
+
+Limits: the 100 GiB ceiling was validated as configuration, not by uploading an actual 100 GiB file. Twelve concurrent requests are not a sustained many-user throughput benchmark. Encoders remain bounded to protect RAM; large batches take time to finish. Existing decoded-image pixel limits and supported formats remain in effect.
+
 # Approved host drive-setup helper — 2026-10-12
 
 After the owner confirmed no needed data on the three Storage Spaces partitions and approved their preparation, a separate one-time host helper was added. **All 14 safety tests passed** using mocked device metadata; no real formatting, mounting, system-file modification or drive erasure was performed. Tests cover OS exclusion, distinct disks, target/sibling mounts and swap, active holders, existing filesystems, partition sizes, persistent-ID mismatch, missing/duplicate IDs, read-only devices, default inspection-only behavior and rejected destructive confirmation. Real host execution remains the owner's next step; see [the approved setup instructions](media-archive.md#approved-one-time-setup-of-these-three-empty-partitions).

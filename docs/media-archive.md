@@ -100,11 +100,17 @@ Defaults can be added to your existing `.env` (never regenerate its secrets):
 | `STORAGE_CHECK_SECONDS` | 86400 | Full checksum/repair interval per file |
 | `MEDIA_CACHE_MIB` | 256 | Strict RAM cache budget per web process |
 | `MEDIA_WORKER_MEMORY_MIB` | 8192 | Video decoder/encoder address-space ceiling |
-| `VIDEO_MAX_MIB` | 20480 | Video upload ceiling (20 GiB) |
+| `PHOTO_MAX_MIB` | 50 | Separate photo cap; 0 disables it |
+| `VIDEO_MAX_MIB` | 102400 | Separate video cap (100 GiB); 0 disables it |
+| `MEDIA_REQUEST_MAX_MIB` | 102400 | Shared per-file ceiling, including Caddy |
+| `UPLOAD_BATCH_LIMIT` | 1000 | Files selected per browser batch |
+| `MEDIA_PENDING_LIMIT` | 1000 | Global pending-processing queue cap |
+| `UPLOADS_PER_MINUTE` | 600 | Per-member upload admission cap |
+| `MEDIA_PARALLEL_JOBS` | 3 | Bounded decoder slots (1–3) |
 | `VIDEO_TRANSCODE` | 1 | Generate browser-compatible previews |
 | `VIDEO_TIMEOUT_SECONDS` | 21600 | Six-hour encoder limit |
 
-The proxy also caps upload requests at 20 GiB. If changing that limit, update `deploy/Caddyfile` consistently. Photo uploads remain capped at 50 MiB and decompression at 50 million pixels. One decoder/encoder runs at a time with two FFmpeg threads; Compose limits the worker to 10 GiB, archive repair to 1 GiB, and the configured web service to 8 GiB. The web service has two processes, so a 256 MiB cache setting means at most 512 MiB of retained response data across them. Copy/hash buffers are 8 MiB; large videos always stream. Photo decoding loads pixels into memory within its bound. Linux uses remaining RAM as its filesystem page cache, which benefits large repeated video reads without unbounded Python allocations. On a 64 GB server this leaves substantial room for PostgreSQL, the OS, page cache and your other program. Do not increase worker counts without adjusting the total memory budget.
+The shared request ceiling defaults to 100 GiB and is configured by `MEDIA_REQUEST_MAX_MIB` in both Django and Caddy. Separate photo/video caps can be disabled with 0; the shared ceiling always remains. Image decoding remains limited to 50 million pixels. The supervisor runs at most two photo jobs and one video job, with two FFmpeg threads per video. Compose limits the worker container to 16 GiB, archive repair to 1 GiB, and the configured web service to 8 GiB. The web service has two processes, so a 256 MiB cache setting means at most 512 MiB of retained response data across them. Copy/hash buffers are 8 MiB; large videos always stream. Photo decoding loads pixels into memory within its bound. Linux uses remaining RAM as its filesystem page cache, which benefits large repeated video reads without unbounded Python allocations. On a 64 GB server this leaves substantial room for PostgreSQL, the OS, page cache and your other program. Do not run additional supervisors or raise individual worker memory ceilings without adjusting the total memory budget. `MEDIA_PARALLEL_JOBS=1` restores serial processing; 2 reserves one photo slot and one video slot; 3 reserves two photo slots and one video slot.
 
 Drive observations update about every 10 seconds. Integrity checks are periodic and dated; a status is an observation, not proof against future bit rot. The dashboard records checksum failures and I/O error dates. Hardware SMART diagnostics are explicitly shown as not measured; use read-only host SMART diagnostics for hardware failure prediction. This container only claims filesystem availability and observed integrity, never a clean hardware bill of health.
 
@@ -128,3 +134,31 @@ curl -I http://127.0.0.1:8080/
 ```
 
 The website listens only on the server's loopback interface. In a remote desktop browser running on the server, use `http://localhost:8080`. In your own computer's browser, use the configured Tailscale HTTPS address or an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 basement@SERVER_IP`), then browse `http://localhost:8080`. A refusal/blank page must be diagnosed using container status and logs before changing network exposure. Do not regenerate `.env`, delete `data/`, or format any drives as a website-startup fix.
+
+
+## Larger files and upload batches
+
+To remove the separate 50 MiB photo cap and separate video cap while retaining a 100 GiB shared ceiling, update your existing `.env` (preserve all secrets, hostnames and storage settings):
+
+```dotenv
+PHOTO_MAX_MIB=0
+VIDEO_MAX_MIB=0
+MEDIA_REQUEST_MAX_MIB=102400
+UPLOAD_BATCH_LIMIT=1000
+MEDIA_PENDING_LIMIT=1000
+UPLOADS_PER_MINUTE=600
+MEDIA_PARALLEL_JOBS=3
+```
+
+Then pull the feature branch and rebuild/recreate the services, including Caddy:
+
+```sh
+git pull --ff-only
+docker compose -f compose.yaml -f compose.archive.yaml up --build -d --force-recreate
+```
+
+Refresh the browser page after startup. Upload selection limits/hints are read from a session-authenticated backend endpoint, so the old hardcoded 50 MiB browser check no longer blocks large photos. The browser still sends one file at a time per uploader to bound request pressure; multiple people can upload concurrently. Accepted originals are stored durably before background decoding and replication. PostgreSQL serializes admission across members to prevent overfilling the pending queue. Over-limit admissions remain retryable; no healthy original is overwritten.
+
+Photos continue to populate the gallery while a large video encodes, and polling refreshes completed older uploads even during a large pending batch. The pending-queue ceiling is a deliberate backpressure mechanism, not a promise that thousands of conversions finish immediately. Large files are streamed; increasing byte caps does not allocate file-sized RAM buffers. The 50-million-pixel safety limit and supported image formats still apply, even with the photo byte cap disabled.
+
+Validated: a JPEG original larger than 50 MiB uploaded via the real UI, twelve simultaneous upload requests were accepted and decoded by the real supervisor, and native video playback/seeking/fullscreen still worked. This is not a sustained-load or 100 GiB-file throughput benchmark.

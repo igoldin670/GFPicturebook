@@ -2,7 +2,6 @@
 import json
 import uuid
 import re
-from pathlib import Path
 from datetime import date
 from functools import wraps
 from urllib.parse import unquote
@@ -13,7 +12,7 @@ from django.http import FileResponse, JsonResponse, Http404, StreamingHttpRespon
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 from memories.models import Photo
-from memories.services.photos import receive, storage_path, InvalidImage
+from memories.services.photos import receive, storage_path, InvalidImage, upload_maximum
 
 
 def member(view):
@@ -54,7 +53,7 @@ def upload(request):
     filename = unquote(request.headers.get("X-Filename", "photo"))
     filename = filename.replace("\\", "/").split("/")[-1]
     filename = "".join(c for c in filename if c.isprintable())[:255] or "photo"
-    maximum = settings.VIDEO_MAX_BYTES if Path(filename).suffix.lower() in {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"} else settings.UPLOAD_MAX_BYTES
+    maximum = upload_maximum(filename)
     if length < 0 or length > maximum:
         return JsonResponse({"error": "File exceeds the upload limit."}, status=413)
     try:
@@ -64,6 +63,14 @@ def upload(request):
     except OSError:
         return JsonResponse({"error": "Storage is unavailable or running low. Try again later."}, status=507)
     return JsonResponse({"id": str(photo.id), "status": photo.status}, status=202)
+
+
+@require_GET
+@member
+def upload_limits(request):
+    return JsonResponse({"photoMaxBytes": upload_maximum('photo.jpg') if settings.UPLOAD_MAX_BYTES else None,
+        "videoMaxBytes": upload_maximum('video.mp4'), "requestMaxBytes": settings.MEDIA_REQUEST_MAX_BYTES,
+        "batchMaxFiles": settings.UPLOAD_BATCH_LIMIT})
 
 
 @require_GET

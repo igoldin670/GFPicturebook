@@ -55,7 +55,7 @@ PHOTO_ROOT = Path(os.environ.get("PHOTO_ROOT", "/photos"))
 
 # EXIF without an offset keeps its camera-local date. Only fallback dates use this zone.
 TIME_ZONE = os.environ.get("LIBRARY_TIME_ZONE", "UTC")
-UPLOAD_MAX_BYTES = 50 * 1024 * 1024
+UPLOAD_MAX_BYTES = int(os.environ.get("PHOTO_MAX_MIB", "50")) * 1024**2
 PHOTO_FREE_RESERVE = 512 * 1024 * 1024
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10
 
@@ -70,7 +70,18 @@ STORAGE_RETRY_SECONDS = 60
 MEDIA_BUFFER_BYTES = 8 * 1024**2
 MEDIA_CACHE_BYTES = int(os.environ.get("MEDIA_CACHE_MIB", "256")) * 1024**2
 MEDIA_CACHE_FILE_BYTES = 32 * 1024**2
-VIDEO_MAX_BYTES = int(os.environ.get("VIDEO_MAX_MIB", "20480")) * 1024**2
+VIDEO_MAX_BYTES = int(os.environ.get("VIDEO_MAX_MIB", "102400")) * 1024**2
+MEDIA_REQUEST_MAX_BYTES = int(os.environ.get("MEDIA_REQUEST_MAX_MIB", "102400")) * 1024**2
+UPLOADS_PER_MINUTE = int(os.environ.get("UPLOADS_PER_MINUTE", "600"))
+MEDIA_PENDING_LIMIT = int(os.environ.get("MEDIA_PENDING_LIMIT", "1000"))
+UPLOAD_BATCH_LIMIT = int(os.environ.get("UPLOAD_BATCH_LIMIT", "1000"))
+MEDIA_PARALLEL_JOBS = int(os.environ.get("MEDIA_PARALLEL_JOBS", "3"))
 VIDEO_TRANSCODE = os.environ.get("VIDEO_TRANSCODE", "1") == "1"
 VIDEO_TIMEOUT_SECONDS = int(os.environ.get("VIDEO_TIMEOUT_SECONDS", "21600"))
 MEDIA_WORKER_MEMORY_MIB = int(os.environ.get("MEDIA_WORKER_MEMORY_MIB", "8192"))
+
+if UPLOAD_MAX_BYTES < 0 or VIDEO_MAX_BYTES < 0 or MEDIA_REQUEST_MAX_BYTES <= 0:
+    raise ImproperlyConfigured("PHOTO_MAX_MIB and VIDEO_MAX_MIB must be non-negative; MEDIA_REQUEST_MAX_MIB must be positive.")
+
+if min(UPLOADS_PER_MINUTE, MEDIA_PENDING_LIMIT, UPLOAD_BATCH_LIMIT) <= 0 or not 1 <= MEDIA_PARALLEL_JOBS <= 3:
+    raise ImproperlyConfigured("Upload counts must be positive; MEDIA_PARALLEL_JOBS must be between 1 and 3.")

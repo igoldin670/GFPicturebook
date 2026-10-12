@@ -41,6 +41,14 @@ def fsync_directory(path):
         os.close(fd)
 
 
+def upload_maximum(filename):
+    video = Path(filename).suffix.lower() in {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
+    # Zero removes the separate photo cap. The shared request ceiling remains
+    # bounded by the video limit, and Caddy has its matching outer body limit.
+    cap = settings.VIDEO_MAX_BYTES if video else settings.UPLOAD_MAX_BYTES
+    return min(cap or settings.MEDIA_REQUEST_MAX_BYTES, settings.MEDIA_REQUEST_MAX_BYTES)
+
+
 @contextmanager
 def upload_destination(required):
     from .drives import configuration, refresh_drives, drive_root
@@ -71,7 +79,7 @@ def receive(request, identifier, filename):
     """
     from memories.models import StoredAsset, FileReplica
     video = Path(filename).suffix.lower() in {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"}
-    maximum = settings.VIDEO_MAX_BYTES if video else settings.UPLOAD_MAX_BYTES
+    maximum = upload_maximum(filename)
     declared = int(request.headers.get("Content-Length", "0")) if hasattr(request, "headers") else 0
     with upload_destination(declared or maximum) as (root, drive):
         staging = root / "staging"
@@ -108,9 +116,14 @@ def receive(request, identifier, filename):
                     if existing.uploaded_by_id != request.user.pk or existing.sha256 != digest.hexdigest():
                         raise InvalidImage("Upload identifier is already used for a different file.")
                     return existing
-                if Photo.objects.filter(uploaded_by=request.user, uploaded_at__gte=timezone.now()-timedelta(minutes=1)).count() >= 60:
+                if connection.vendor == 'postgresql':
+                    # Distinct from the UUID advisory-lock namespace. Serialize
+                    # admission so simultaneous members cannot overfill the queue.
+                    with connection.cursor() as cursor:
+                        cursor.execute('SELECT pg_advisory_xact_lock(%s, %s)', [90117, 1])
+                if Photo.objects.filter(uploaded_by=request.user, uploaded_at__gte=timezone.now()-timedelta(minutes=1)).count() >= settings.UPLOADS_PER_MINUTE:
                     raise InvalidImage("Upload limit reached. Wait a minute before retrying.")
-                if Photo.objects.filter(status=Photo.Status.PENDING).count() >= 100:
+                if Photo.objects.filter(status=Photo.Status.PENDING).count() >= settings.MEDIA_PENDING_LIMIT:
                     raise InvalidImage("Processing queue is full. Wait before uploading more.")
                 key = f"originals/{str(identifier)[:2]}/{identifier}"
                 if drive:

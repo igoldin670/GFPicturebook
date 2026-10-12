@@ -3,6 +3,7 @@ import hashlib
 import io
 import tempfile
 import uuid
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 from django.contrib.auth import get_user_model
@@ -261,6 +262,29 @@ class ArchiveTests(TestCase):
         self.assertFalse(Photo.objects.exists())
         self.assertFalse((self.root/'legacy'/'originals').exists())
 
+    def test_configurable_queue_capacity_rejects_only_after_limit(self):
+        with override_settings(MEDIA_PENDING_LIMIT=1):
+            response = self.client.post('/api/photos/upload/',self.data,content_type='application/octet-stream',
+                HTTP_X_CSRFTOKEN=self.token,HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()),HTTP_X_FILENAME='first.jpg')
+            self.assertEqual(response.status_code,202)
+            second = self.client.post('/api/photos/upload/',self.data,content_type='application/octet-stream',
+                HTTP_X_CSRFTOKEN=self.token,HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()),HTTP_X_FILENAME='second.jpg')
+            self.assertEqual(second.status_code,400)
+        self.assertEqual(Photo.objects.count(),1)
+
+    def test_decoder_claim_is_exclusive_and_recovers_after_expiry(self):
+        from memories.management.commands.process_photos import claim_job
+        from memories.models import ProcessingJob
+        response = self.client.post('/api/photos/upload/',self.data,content_type='application/octet-stream',
+            HTTP_X_CSRFTOKEN=self.token,HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()),HTTP_X_FILENAME='queued.jpg')
+        self.assertEqual(response.status_code,202)
+        job = claim_job(['photo'])
+        self.assertIsNotNone(job)
+        self.assertIsNone(claim_job(['photo']))
+        self.assertIsNone(claim_job(['video']))
+        ProcessingJob.objects.filter(pk=job.pk).update(lease_until=timezone.now()-timedelta(seconds=1))
+        self.assertEqual(claim_job(['photo']).pk,job.pk)
+
 from django.db import connection, close_old_connections, connections
 from django.test import TransactionTestCase
 from unittest import skipUnless
@@ -319,3 +343,28 @@ class ArchiveConcurrencyTests(TransactionTestCase):
         self.assertEqual(errors,[])
         self.assertEqual(sorted(responses),[202,400])
         self.assertEqual(Photo.objects.count(),1)
+
+    @override_settings(MEDIA_PENDING_LIMIT=1)
+    def test_simultaneous_members_cannot_overfill_pending_queue(self):
+        other = get_user_model().objects.create_user('queue-member')
+        barrier = threading.Barrier(2)
+        responses, errors = [], []
+        def upload(user):
+            close_old_connections()
+            try:
+                client = Client(enforce_csrf_checks=True)
+                client.force_login(user)
+                token = client.get('/api/session/').json()['csrfToken']
+                barrier.wait(timeout=10)
+                response = client.post('/api/photos/upload/',self.data,content_type='application/octet-stream',
+                    HTTP_X_CSRFTOKEN=token,HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()),HTTP_X_FILENAME='queued.jpg')
+                responses.append(response.status_code)
+            except BaseException as exc: errors.append(exc)
+            finally: connections.close_all()
+        threads = [threading.Thread(target=upload,args=(user,)) for user in [self.user,other]]
+        for thread in threads: thread.start()
+        for thread in threads: thread.join(timeout=15)
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertEqual(errors,[])
+        self.assertEqual(sorted(responses),[202,400])
+        self.assertEqual(Photo.objects.filter(status='pending').count(),1)

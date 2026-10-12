@@ -49,9 +49,9 @@ services:
     <<: *app
     restart: unless-stopped
     command: [python, manage.py, process_photos]
-    mem_limit: 10g
-    cpus: 2.0
-    pids_limit: 64
+    mem_limit: 16g
+    cpus: 4.0
+    pids_limit: 128
     depends_on:
       migrate: {condition: service_completed_successfully}
       storage: {condition: service_completed_successfully}
@@ -73,6 +73,7 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
+      MEDIA_REQUEST_MAX_MIB: "${MEDIA_REQUEST_MAX_MIB:-102400}"
       # Internal container traffic must not use an external HTTP proxy.
       NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1},web,db,proxy"
     ports: ["127.0.0.1:8080:80"]

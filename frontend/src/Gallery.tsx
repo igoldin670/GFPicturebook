@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type Photo = {id: string; filename: string; date: string; dateSource: string; caption: string; width: number; height: number; camera: string; latitude: string | null; longitude: string | null; thumbnail: string; preview: string; original: string; kind: "photo" | "video"; duration: number | null; byteSize: number; playback: string | null};
+type UploadLimits = {photoMaxBytes: number | null; videoMaxBytes: number; requestMaxBytes: number; batchMaxFiles: number};
 type Page = {photos: Photo[]; next: string | null};
 type Job = {id: string; filename: string; status: string; message: string};
 type Transfer = {id: string; file: File; progress: number; state: 'queued' | 'sending' | 'accepted' | 'error'; error?: string};
@@ -61,6 +62,7 @@ function PhotoDetail({photo, csrf, close, saved}: {photo: Photo; csrf: string; c
 
 export default function Gallery({csrf, changed}: {csrf: string; changed: () => void}) {
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [limits, setLimits] = useState<UploadLimits | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
@@ -79,6 +81,7 @@ export default function Gallery({csrf, changed}: {csrf: string; changed: () => v
   const changedRef = useRef(changed);
   changedRef.current = changed;
   useEffect(() => {mounted.current = true; return () => {mounted.current = false; controller.current?.abort();};}, []);
+  useEffect(() => {void api<UploadLimits>('/api/photos/limits/').then(value => {if (mounted.current) setLimits(value);}).catch(e => {if (mounted.current) setError((e as Error).message);});}, []);
   const load = useCallback(async (cursor?: string) => {
     if (loadingRef.current) return;
     loadingRef.current = true; setLoading(true);
@@ -95,7 +98,7 @@ export default function Gallery({csrf, changed}: {csrf: string; changed: () => v
       const result = await api<{uploads: Job[]}>('/api/photos/uploads/');
       if (!mounted.current) return;
       const signature = result.uploads.filter(j => j.status === 'pending' || j.status === 'processing').map(j => j.id).sort().join(',');
-      if (pendingRef.current || pendingSignature.current !== signature) {void load(); changedRef.current();}
+      if (pendingRef.current || pendingSignature.current !== signature || Boolean(signature)) {void load(); changedRef.current();}
       pendingRef.current = false;
       pendingSignature.current = signature;
       setJobs(result.uploads);
@@ -111,7 +114,8 @@ export default function Gallery({csrf, changed}: {csrf: string; changed: () => v
       if (abort.signal.aborted) break;
       update(item.id, {state:'sending',error:undefined});
       try {
-        if (!videoFile(item.file) && item.file.size > 50*1024*1024) throw new Error('Photo exceeds the 50 MiB limit.');
+        const maximum = limits ? (videoFile(item.file) ? limits.videoMaxBytes : limits.photoMaxBytes ?? limits.requestMaxBytes) : null;
+        if (maximum !== null && item.file.size > maximum) throw new Error(`File exceeds the ${fileSize(maximum)} upload limit.`);
         await uploadFile(item, csrf, abort.signal, percent => update(item.id,{progress:percent}));
         update(item.id,{state:'accepted',progress:100}); pendingRef.current = true;
         void poll();
@@ -122,12 +126,13 @@ export default function Gallery({csrf, changed}: {csrf: string; changed: () => v
   }
   function choose(files: FileList | null) {
     if (!files || busyRef.current) return;
-    if (files.length > 100) {setError('Choose up to 100 photos or videos per batch.'); return;}
+    const maximum = limits?.batchMaxFiles ?? 100;
+    if (files.length > maximum) {setError(`Choose up to ${maximum} photos or videos per batch.`); return;}
     const items: Transfer[] = Array.from(files).map(file => ({id:crypto.randomUUID(),file,progress:0,state:'queued'}));
     setTransfers(items); void send(items);
   }
   return <section className="library"><div className="library-heading"><div><p className="eyebrow">OUR GROWING COLLECTION</p><h2>Little moments, kept.</h2></div><button className="button" disabled={uploading} onClick={() => picker.current?.click()}>＋ Add memories</button></div><input className="file-picker" ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/quicktime,video/webm,.mp4,.mov,.mkv,.webm,.avi,.m4v" multiple onChange={event => {choose(event.target.files); event.target.value='';}} aria-label="Choose photos or videos"/>
-    <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => {event.preventDefault();setDragging(true);}} onDragLeave={() => setDragging(false)} onDrop={event => {event.preventDefault();setDragging(false);choose(event.dataTransfer.files);}}><span>♡</span><p>Bring a little of your world here.</p><button className="quiet" disabled={uploading} onClick={() => picker.current?.click()}>Choose photos or videos <span className="desktop">or drag them here</span></button><small>Photos up to 50 MiB · MP4, MOV, MKV, WebM, AVI & M4V videos · originals kept unchanged</small></div>
+    <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => {event.preventDefault();setDragging(true);}} onDragLeave={() => setDragging(false)} onDrop={event => {event.preventDefault();setDragging(false);choose(event.dataTransfer.files);}}><span>♡</span><p>Bring a little of your world here.</p><button className="quiet" disabled={uploading} onClick={() => picker.current?.click()}>Choose photos or videos <span className="desktop">or drag them here</span></button><small>{limits ? limits.photoMaxBytes !== null ? `Photos up to ${fileSize(limits.photoMaxBytes)} · videos up to ${fileSize(limits.videoMaxBytes)}` : `Photos and videos up to ${fileSize(limits.requestMaxBytes)}` : 'Photos & videos'} · MP4, MOV, MKV, WebM, AVI & M4V · originals kept unchanged</small></div>
     {transfers.length > 0 && <details className="upload-progress" open><summary>Uploads · {transfers.filter(t => t.state === 'accepted').length} of {transfers.length} received</summary><ul>{transfers.map(item => <li key={item.id}><span>{item.file.name}</span><span>{item.state === 'sending' ? `${item.progress}%` : item.state === 'accepted' ? 'Received — processing separately' : item.state === 'error' ? item.error : 'Queued'}</span>{item.state === 'sending' && <progress max={100} value={item.progress} aria-label={`Uploading ${item.file.name}`}/>}</li>)}</ul>{transfers.some(item => item.state === 'error') && <button className="quiet" disabled={uploading} onClick={() => void send(transfers.filter(t => t.state === 'error'))}>Retry unsuccessful uploads</button>}{!uploading && <button className="quiet" onClick={() => setTransfers([])}>Dismiss upload progress</button>}</details>}
     {jobs.length > 0 && <details className="processing-status" open={jobs.some(j => j.status !== 'failed')}><summary>{jobs.filter(j => j.status !== 'failed').length} processing · {jobs.filter(j => j.status === 'failed').length} unable to process</summary><ul>{jobs.map(job => <li key={job.id}><strong>{job.filename}</strong><span>{job.message}</span></li>)}</ul></details>}
     {error && <p className="error" role="alert">{error} <button className="quiet" onClick={() => void load()}>Refresh</button></p>}

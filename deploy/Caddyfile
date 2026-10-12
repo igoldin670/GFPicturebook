@@ -3,7 +3,7 @@
     @upload path /api/photos/upload/
     handle @upload {
         request_body {
-            max_size 20GiB
+            max_size {$MEDIA_REQUEST_MAX_MIB:102400}MiB
         }
         reverse_proxy web:8000 {
             header_up X-Forwarded-Proto https
