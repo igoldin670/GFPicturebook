@@ -6,9 +6,43 @@ The existing cream/sage photo polaroids remain. Video polaroids use generated th
 
 The supplied Linux inventory identifies four physical disks. The 1 TB disk contains the OS (filesystem UUID `62fba36b-4bd5-46be-8e8e-b20149db4e02`). The three 2 TB partitions currently report only `PARTLABEL="Storage pool"` and PARTUUIDs, with no recognized filesystem types, filesystem UUIDs or mountpoints. A partition ID is not an existing filesystem UUID. These may be members of an existing pool; do not format or change them to make this application work.
 
-The application cannot currently claim redundancy on those server drives. Their storage-pool layout must first be identified and any existing files preserved. Read-only identification commands include `lsblk -o NAME,TYPE,SIZE,FSTYPE,UUID,MOUNTPOINTS,MODEL,SERIAL`, `sudo blkid` and `findmnt -o SOURCE,TARGET,FSTYPE,UUID`. Do not mount an unknown pool member as an independent writable filesystem. Mounting/provisioning is a separate host administration step; this application never mounts, formats, repartitions, repairs filesystems or erases drives.
+The application cannot currently claim redundancy on those server drives. The owner subsequently confirmed that the three pool disks contain no needed files and authorized preparing those three storage disks, while preserving the Linux OS disk. A separate, manually invoked host helper is provided below. The application and its workers still never format or mount anything. Real host formatting/mounting has not been executed or validated from this cloud task.
 
 The provided manifest excludes the OS disk from archive writes. It can be monitored alongside the three archive disks. If four writable archive disks are required, an additional filesystem or an explicitly authorized OS-disk allocation is needed. Two healthy writable disks suffice for protection; a third permits rebuilding after a failure. No real disks were used for failure/corruption tests.
+
+## Approved one-time setup of these three empty partitions
+
+The helper is specific to the supplied server, identified by its OS filesystem UUID and the three existing large-partition PARTUUIDs. It is **not** a general-purpose formatter. It leaves partition tables, the 128 MB partitions and the OS filesystem intact, while creating ext4 on the three approximately 2 TB partitions. This destroys their old Storage Spaces contents; the owner explicitly approved that change after confirming no needed files.
+
+First check out the feature branch, then inspect only:
+
+```sh
+git fetch origin
+git switch feature/redundant-media-archive
+git pull --ff-only
+sudo python3 scripts/setup-archive-drives.py
+```
+
+The first script invocation only reads information. Confirm it identifies exactly the three expected large storage partitions and excludes the 1 TB Linux disk. It refuses mounted partitions, swap, mounted siblings, block-device holders, duplicate/incorrect identities, unexpected capacities, existing recognizable filesystems, existing app drive configuration or conflicting mountpoints. Existing `.env` and `data/` are preserved.
+
+After reviewing that output, run the explicitly destructive mode:
+
+```sh
+sudo python3 scripts/setup-archive-drives.py --apply
+```
+
+Type `FORMAT THREE ARCHIVE PARTITIONS` only when the printed targets are correct. The helper creates ext4 filesystems on those three approved partitions, records their new filesystem UUIDs, mounts `/mnt/album-drive-1`, `-2` and `-3`, and appends UUID-based entries to `/etc/fstab`. It saves the original fstab and recovery inventory under `/var/backups/album-drive-setup-*`. Only each newly created `album-archive` directory is owned by container UID/GID 10001. It generates the ignored `config/drives.json` and `compose.archive.yaml`, with the OS disk monitor-only/excluded.
+
+If an error occurs after formatting starts, **stop and share the error**. Do not blindly rerun the formatter: it deliberately refuses already-created filesystems. Use its `new-filesystems.json` recovery record to finish mounts/configuration without formatting again. No formatting commands are automatically executed by installations, startup or workers.
+
+Start the app and verify:
+
+```sh
+docker compose -f compose.yaml -f compose.archive.yaml up --build -d
+docker compose -f compose.yaml -f compose.archive.yaml logs --tail=100 archive worker
+```
+
+Open the admin storage dashboard. The three archive drives should be online; the OS disk should be excluded. Upload a test photo/video and confirm every asset reaches two verified copies on different drives. Legacy photos migrate gradually while their OS-disk originals remain intact. New originals go onto archive drives. Future general-storage programs can use separate directories outside `album-archive`; preserve the filesystem UUIDs and app directory permissions.
 
 ## Safe upgrade
 

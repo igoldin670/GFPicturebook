@@ -1,3 +1,7 @@
+# Approved host drive-setup helper — 2026-10-12
+
+After the owner confirmed no needed data on the three Storage Spaces partitions and approved their preparation, a separate one-time host helper was added. **All 14 safety tests passed** using mocked device metadata; no real formatting, mounting, system-file modification or drive erasure was performed. Tests cover OS exclusion, distinct disks, target/sibling mounts and swap, active holders, existing filesystems, partition sizes, persistent-ID mismatch, missing/duplicate IDs, read-only devices, default inspection-only behavior and rejected destructive confirmation. Real host execution remains the owner's next step; see [the approved setup instructions](media-archive.md#approved-one-time-setup-of-these-three-empty-partitions).
+
 # Redundant media archive — 2026-10-12
 
 - Final source: **all 68 backend tests passed on PostgreSQL**, including simultaneous archive workers and cross-member UUID upload collisions; the test database was removed successfully.
