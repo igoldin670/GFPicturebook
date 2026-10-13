@@ -4,7 +4,9 @@ A private, self-hosted picture book for two. Warm ivory, sage, quiet typography,
 
 **Media archive update:** video polaroids, authenticated seeking/playback, FFmpeg thumbnails/compatible previews, verified redundant-drive storage, repair/integrity workers and an admin-only storage dashboard are implemented. [Configure the archive safely](docs/media-archive.md); redundancy requires existing mounted filesystems and is not active until configured.
 
-**Photo functionality:** secure accounts, single/multiple photo uploads and desktop drag-and-drop, background processing for JPEG/PNG/WebP/HEIC, unchanged originals, EXIF dates/camera/GPS/orientation, private thumbnails/previews/downloads, a paginated chronological gallery, and caption/date editing. Picture-book navigation, richer album/favorites UI, timeline/search, Trash actions, PWA installation and offsite/versioned backups are still planned. Keep an independent copy of every photo.
+**Photo functionality:** secure accounts, single/multiple photo uploads and desktop drag-and-drop, background processing for JPEG/PNG/WebP/HEIC, unchanged originals, EXIF dates/camera/GPS/orientation, private thumbnails/previews/downloads, a paginated chronological gallery, and caption/date editing. Richer album/favorites UI, timeline/search, Trash actions, PWA installation and offsite/versioned backups are still planned. Keep an independent copy of every photo.
+
+**Dates:** a textured sage memory book with a 3D cover opening, two-sided page turns, and automatic monthly chapters. Browse with the navigation rail or `/#dates`. [Read about date grouping and controls](docs/dates.md).
 
 **Already running increment 1? Follow [the server upgrade and photo test guide](docs/photo-uploads.md).** Keep your existing `.env` and accounts.
 
@@ -96,7 +98,9 @@ GFPicturebook/
 │   └── manage.py
 ├── frontend/
 │   ├── src/main.tsx            # Sign-in and authenticated welcome screen
-│   ├── src/Gallery.tsx         # Upload progress, gallery and editable photo details
+│   ├── src/Gallery.tsx         # Upload progress, shared polaroids and editable media details
+│   ├── src/Dates.tsx           # Monthly chapters, animated book and date navigation
+│   ├── src/Dates.css           # Hardcover, paper depth, page turns and navigation rail
 │   ├── src/style.css           # Responsive design, local fonts, reduced motion
 │   ├── package-lock.json       # Exact JS dependency resolution
 │   └── vite.config.ts

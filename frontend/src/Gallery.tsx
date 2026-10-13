@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-type Photo = {id: string; filename: string; date: string; dateSource: string; caption: string; width: number; height: number; camera: string; latitude: string | null; longitude: string | null; thumbnail: string; preview: string; original: string; kind: "photo" | "video"; duration: number | null; byteSize: number; playback: string | null};
+export type Photo = {id: string; filename: string; date: string; dateSource: string; caption: string; width: number; height: number; camera: string; latitude: string | null; longitude: string | null; thumbnail: string; preview: string; original: string; kind: "photo" | "video"; duration: number | null; byteSize: number; playback: string | null};
 type UploadLimits = {photoMaxBytes: number | null; videoMaxBytes: number; requestMaxBytes: number; batchMaxFiles: number};
-type Page = {photos: Photo[]; next: string | null};
+export type Page = {photos: Photo[]; next: string | null};
 type Job = {id: string; filename: string; status: string; message: string};
 type Transfer = {id: string; file: File; progress: number; state: 'queued' | 'sending' | 'accepted' | 'error'; error?: string};
-async function api<T>(path: string, options?: RequestInit): Promise<T> {
+export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {credentials: 'same-origin', ...options});
   const data = await response.json().catch(() => ({error: 'Request failed. Check your connection and try again.'}));
   if (!response.ok) throw new Error(data.error || 'Request failed. Please refresh and try again.');
@@ -45,7 +45,7 @@ const durationLabel = (seconds: number | null) => {const total = Math.floor(seco
 const fileSize = (bytes: number) => bytes >= 1024**3 ? `${(bytes / 1024**3).toFixed(1)} GiB` : `${(bytes / 1024**2).toFixed(1)} MiB`;
 const videoFile = (file: File) => /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(file.name);
 
-function PhotoDetail({photo, csrf, close, saved}: {photo: Photo; csrf: string; close: () => void; saved: () => void}) {
+export function PhotoDetail({photo, csrf, close, saved}: {photo: Photo; csrf: string; close: () => void; saved: () => void}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [caption, setCaption] = useState(photo.caption);
   const [date, setDate] = useState(photo.date);
@@ -60,7 +60,11 @@ function PhotoDetail({photo, csrf, close, saved}: {photo: Photo; csrf: string; c
   return <dialog ref={dialog} className="photo-dialog" onCancel={close} aria-labelledby="detail-heading"><button className="close-photo" onClick={close} aria-label="Close memory">×</button>{photo.kind === 'video' ? <div className="video-stage">{photo.playback ? <video className="detail-video" controls playsInline preload="metadata" poster={photo.thumbnail} src={photo.playback} aria-label={photo.caption || photo.filename}/> : <><img className="detail-image" src={photo.thumbnail} alt={photo.caption || photo.filename}/><p>Download the original to play this format.</p></>}</div> : <img className="detail-image" src={photo.preview} alt={photo.caption || photo.filename}/>}<div className="detail-content"><p className="eyebrow">A MOMENT TO KEEP</p><h2 id="detail-heading">{readableDate(photo.date)}</h2><form onSubmit={save}><label htmlFor="photo-date">Date taken</label><input id="photo-date" type="date" value={date} onChange={event => setDate(event.target.value)} required/><p className="field-note">Date source: {photo.dateSource === 'upload' ? 'Upload date — no usable capture date found' : photo.dateSource === 'manual' ? 'Manually edited' : 'Camera metadata'}</p><label htmlFor="photo-caption">A few words about this day</label><textarea id="photo-caption" value={caption} maxLength={5000} onChange={event => setCaption(event.target.value)} placeholder="What do you want to remember?"/><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save this memory'}</button></form>{error && <p role="alert" className="error">{error}</p>}<dl className="photo-facts"><dt>Resolution</dt><dd>{photo.width} × {photo.height}</dd><dt>File size</dt><dd>{fileSize(photo.byteSize)}</dd>{photo.kind === "video" && <><dt>Duration</dt><dd>{durationLabel(photo.duration)}</dd></>}{photo.camera && <><dt>Camera</dt><dd>{photo.camera}</dd></>}{photo.latitude !== null && photo.longitude !== null && <><dt>GPS coordinates</dt><dd>{photo.latitude}, {photo.longitude}</dd></>}</dl><a className="original-link" href={photo.original}>Download unchanged original ↗</a><p className="field-note">Originals may include location metadata.</p></div></dialog>;
 }
 
-export default function Gallery({csrf, changed}: {csrf: string; changed: () => void}) {
+export function PhotoCard({photo, open}: {photo: Photo; open: () => void}) {
+  return <button className={`photo-card ${photo.kind === 'video' ? 'video-polaroid' : ''}`} onClick={open} aria-label={`${photo.kind === 'video' ? 'Play video' : 'Open photo'}: ${photo.caption || photo.filename}`}><div className="polaroid-image"><img loading="lazy" decoding="async" src={photo.thumbnail} alt={photo.caption || photo.filename}/>{photo.kind === 'video' && <><span className="polaroid-play" aria-hidden="true">▷</span><span className="polaroid-duration">{durationLabel(photo.duration)}</span><span className="polaroid-film" aria-hidden="true">▥</span></>}</div><span>{photo.caption || readableDate(photo.date)}</span></button>;
+}
+
+export default function Gallery({csrf, changed, revision = 0}: {csrf: string; changed: () => void; revision?: number}) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [limits, setLimits] = useState<UploadLimits | null>(null);
   const [next, setNext] = useState<string | null>(null);
@@ -93,6 +97,7 @@ export default function Gallery({csrf, changed}: {csrf: string; changed: () => v
     } catch(e) {if (mounted.current) setError((e as Error).message);}
     finally {loadingRef.current = false; if (mounted.current) setLoading(false);}
   }, []);
+  useEffect(() => {void load();}, [revision, load]);
   const poll = useCallback(async () => {
     try {
       const result = await api<{uploads: Job[]}>('/api/photos/uploads/');
@@ -136,7 +141,7 @@ export default function Gallery({csrf, changed}: {csrf: string; changed: () => v
     {transfers.length > 0 && <details className="upload-progress" open><summary>Uploads · {transfers.filter(t => t.state === 'accepted').length} of {transfers.length} received</summary><ul>{transfers.map(item => <li key={item.id}><span>{item.file.name}</span><span>{item.state === 'sending' ? `${item.progress}%` : item.state === 'accepted' ? 'Received — processing separately' : item.state === 'error' ? item.error : 'Queued'}</span>{item.state === 'sending' && <progress max={100} value={item.progress} aria-label={`Uploading ${item.file.name}`}/>}</li>)}</ul>{transfers.some(item => item.state === 'error') && <button className="quiet" disabled={uploading} onClick={() => void send(transfers.filter(t => t.state === 'error'))}>Retry unsuccessful uploads</button>}{!uploading && <button className="quiet" onClick={() => setTransfers([])}>Dismiss upload progress</button>}</details>}
     {jobs.length > 0 && <details className="processing-status" open={jobs.some(j => j.status !== 'failed')}><summary>{jobs.filter(j => j.status !== 'failed').length} processing · {jobs.filter(j => j.status === 'failed').length} unable to process</summary><ul>{jobs.map(job => <li key={job.id}><strong>{job.filename}</strong><span>{job.message}</span></li>)}</ul></details>}
     {error && <p className="error" role="alert">{error} <button className="quiet" onClick={() => void load()}>Refresh</button></p>}
-    <div className="photo-grid">{photos.map((photo,index) => <div className="memory-cell" key={photo.id}>{(index === 0 || photo.date !== photos[index-1].date) && <p className="date-divider">{readableDate(photo.date)}</p>}<button className={`photo-card ${photo.kind === 'video' ? 'video-polaroid' : ''}`} onClick={() => setSelected(photo)} aria-label={`${photo.kind === 'video' ? 'Play video' : 'Open photo'}: ${photo.caption || photo.filename}`}><div className="polaroid-image"><img loading="lazy" decoding="async" src={photo.thumbnail} alt={photo.caption || photo.filename}/>{photo.kind === 'video' && <><span className="polaroid-play" aria-hidden="true">▷</span><span className="polaroid-duration">{durationLabel(photo.duration)}</span><span className="polaroid-film" aria-hidden="true">▥</span></>}</div><span>{photo.caption || readableDate(photo.date)}</span></button></div>)}</div>
+    <div className="photo-grid">{photos.map((photo,index) => <div className="memory-cell" key={photo.id}>{(index === 0 || photo.date !== photos[index-1].date) && <p className="date-divider">{readableDate(photo.date)}</p>}<PhotoCard photo={photo} open={() => setSelected(photo)}/></div>)}</div>
     {loading && <p role="status">Gathering our moments…</p>}{!loading && photos.length === 0 && <p className="empty-library">The first page is waiting for you. Add a photo or video to begin.</p>}{next && <button className="button load-more" disabled={loading} onClick={() => void load(next)}>More memories ↓</button>}
     {selected && <PhotoDetail key={selected.id} photo={selected} csrf={csrf} close={() => setSelected(null)} saved={() => {void load();changedRef.current();}}/>}
   </section>;

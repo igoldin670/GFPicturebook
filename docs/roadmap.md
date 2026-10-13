@@ -1,6 +1,6 @@
 # Incremental development roadmap
 
-Every increment should include source changes, updated commands, automated regression coverage for its risks, and a manual phone/desktop acceptance checklist. Complete each gate before depending on it. Increments 1 and 2 are built. Basic gallery/private media/caption-date editing from step 4 are also delivered so ingestion can be tested end to end; the rest of the steps remain planned.
+Every increment should include source changes, updated commands, automated regression coverage for its risks, and a manual phone/desktop acceptance checklist. Complete each gate before depending on it. Increments 1 and 2 are built. Basic gallery/private media/caption-date editing from step 4 are also delivered so ingestion can be tested end to end; The Dates memory book and dynamic monthly navigation from step 6 are now delivered; day timelines, gestures, and the remaining items are still planned.
 
 | Step | Build and files | How to verify before continuing |
 |---|---|---|
@@ -9,7 +9,7 @@ Every increment should include source changes, updated commands, automated regre
 | 3 — Recovery before real imports | Backup service/scripts, scheduled DB dump + Restic, verification/status API; `docs/backups.md` operational commands | Back up test photos and metadata; restore on a blank isolated host; compare checksums, users, albums and derivatives. Fail a backup and show stale/failed status. Prove interrupted backup never reports success. No irreplaceable imports before this gate. |
 | 4 — Everyday library | Private media routes, cursor queries, React thumbnail gallery/detail dialog, metadata editing | Browse 10,000 synthetic records with EXPLAIN and a bounded response size. Scroll on phone, change dates across month/year boundaries, edit captions, reject invalid fields and verify trashed/private image access rules. |
 | 5 — Shared chapters | Album CRUD/memberships/cover selection; favorites; filters and indexed text search | Same photo in two albums without extra file; remove one membership without affecting another; each account has independent favorites. Search caption/location and combine date/album/favorite filters. |
-| 6 — Picture book and timeline | Paginated date grouping, book layout, swipe/keyboard/fullscreen, loading/error states | Navigate single/multiple-photo pages on iOS/Android/desktop; reduced motion, screen-reader labels, touch scroll and image preloading. Clicking a timeline day selects the right calendar date. |
+| 6 — Picture book and timeline (monthly book implemented) | Paginated date grouping, book layout, swipe/keyboard/fullscreen, loading/error states | Navigate single/multiple-photo pages on iOS/Android/desktop; reduced motion, screen-reader labels, touch scroll and image preloading. Clicking a timeline day selects the right calendar date. |
 | 7 — Safe administration | Storage usage/recent uploads, audited metadata edits, Trash/restore, explicit protected purge and account controls | Trash removes from all normal views but preserves originals; restore returns memberships; permanent deletion is admin-only, confirmed and requires a recent verified independent backup. Default: no automatic purge. |
 | 8 — Operational hardening and PWA | Manifest/icons, shell-only service worker, dependency update workflow, monitoring, disk alerts, backup alerts, deployment checks | HTTPS/cookie checks, restart/recovery drills, offsite restore, disk exhaustion alerts, installation on mobile, no private data in service-worker caches, clear state after logout. Review before normal daily use. |
 | 9 — Optional additions | Video, comments, on-this-day, maps, opt-in local tagging, imports, exports | Add one at a time with separate migrations and processing jobs; retain unchanged original bytes and existing backup compatibility. |
@@ -34,3 +34,10 @@ Photo endpoints use a common member-only decorator and same-origin CSRF-protecte
 - `POST /api/photos/{uuid}/edit/`: CSRF-protected JSON caption/date update; preserves capture metadata and original bytes.
 
 Malformed/unsupported images become failed jobs, retain their uploaded bytes, and cannot be rendered or downloaded through media routes. CLI `retry_photo UUID` is available after an operator fixes a transient processing/storage problem.
+
+## Dates API additions
+
+- `GET /api/photos/months/`: ascending populated months as `{months: [{month: "YYYY-MM", count: number}]}`, including ready photos and videos across the collection. Uses the existing effective calendar date.
+- `GET /api/photos/?month=YYYY-MM`: filters the existing 48-record gallery pages to that month. Signed cursors are scoped to the selected month; the unfiltered gallery contract stays compatible. Invalid months or mismatched cursors return 400. Both routes require a member session.
+
+See [the Dates experience](dates.md) for navigation, accessibility, and manual acceptance checks.

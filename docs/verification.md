@@ -1,3 +1,13 @@
+# Dates memory book — 2026-10-13
+
+- **All 82 backend tests passed on PostgreSQL**, including seven new calendar tests. Coverage includes capture-local dates across UTC month boundaries, upload/manual date sources, videos, hidden/failed/trashed media, leap years, year rollover, four-digit calendar extremes, invalid filters, complete month pagination, scoped signed cursors, manual chapter changes, and session authorization.
+- TypeScript/Vite production build, migration drift check, and Git whitespace check passed. No schema migration or dependency was added.
+- Chromium tested the production-built frontend with real Caddy/Gunicorn APIs and supervised media processing. Six synthetic photos and a video uploaded successfully while Dates stayed open. Generated media and temporary accounts were removed afterward, with the local archive worker briefly paused for cleanup and then resumed.
+- Browser checks passed for the empty library, delayed 3D cover opening, forward/backward page turns, keyboard navigation, chapter counts and filtering, empty-month skipping, direct chapter selection, manual edits creating a new month, video playback/seeking in the existing lightbox, failed-request recovery, back/forward/hash reload, reduced motion, and member/admin separation. No JavaScript page errors were recorded.
+- Layouts at 1440, 1024, 768, 390, and 320 px had no horizontal overflow, including phone cover-opening and page-turn frames. Desktop/phone layouts and animation-frame screenshots were inspected; the phone book shows one keepsake to keep the controls clear, with the full collection below.
+
+Scope of verification: Chromium on Linux, including emulated screen sizes and reduced motion. Safari/iOS and physical touch devices were not exercised. Calendar aggregation and pagination are covered, but a large-library performance benchmark was not run.
+
 # Configurable limits and larger upload batches — 2026-10-12
 
 - **All 75 backend tests passed on PostgreSQL**, including a JPEG original over 50 MiB with its separate cap disabled, independently disabled video caps, the shared ceiling, decoder claim expiry/recovery and simultaneous member admission into a bounded queue.

@@ -7,7 +7,8 @@ from functools import wraps
 from urllib.parse import unquote
 from django.conf import settings
 from django.core import signing
-from django.db.models import Q
+from django.db.models import Q, Count
+from django.db.models.functions import TruncMonth
 from django.http import FileResponse, JsonResponse, Http404, StreamingHttpResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
@@ -75,19 +76,42 @@ def upload_limits(request):
 
 @require_GET
 @member
+def months(request):
+    # display_date already honors capture metadata, upload fallback, and manual edits.
+    chapters = visible().annotate(month=TruncMonth("display_date")).values("month").annotate(count=Count("id")).order_by("month")
+    return JsonResponse({"months": [{"month": row["month"].isoformat()[:7], "count": row["count"]} for row in chapters]})
+
+
+@require_GET
+@member
 def gallery(request):
     query = visible()
+    month = request.GET.get("month")
+    salt = "photo-page"
+    if month is not None:
+        try:
+            if not re.fullmatch(r"[0-9]{4}-[0-9]{2}", month):
+                raise ValueError()
+            year, number = map(int, month.split("-"))
+            start = date(year, number, 1)
+            query = query.filter(display_date__gte=start)
+            if (year, number) != (9999, 12):
+                end = date(year + 1, 1, 1) if number == 12 else date(year, number + 1, 1)
+                query = query.filter(display_date__lt=end)
+            salt += ":" + month
+        except ValueError:
+            return JsonResponse({"error": "Choose a valid month in YYYY-MM format."}, status=400)
     cursor = request.GET.get("cursor")
     if cursor:
         try:
-            calendar, identifier = signing.loads(cursor, salt="photo-page", max_age=86400)
+            calendar, identifier = signing.loads(cursor, salt=salt, max_age=86400)
             calendar, identifier = date.fromisoformat(calendar), uuid.UUID(identifier)
         except (signing.BadSignature, ValueError, TypeError):
             return JsonResponse({"error": "This page has expired. Refresh the gallery."}, status=400)
         query = query.filter(Q(display_date__lt=calendar) | Q(display_date=calendar, id__lt=identifier))
     rows = list(query.order_by("-display_date", "-id")[:49])
     page = rows[:48]
-    next_cursor = signing.dumps([page[-1].display_date.isoformat(), str(page[-1].id)], salt="photo-page") if len(rows) > 48 else None
+    next_cursor = signing.dumps([page[-1].display_date.isoformat(), str(page[-1].id)], salt=salt) if len(rows) > 48 else None
     return JsonResponse({"photos": [serialize(photo) for photo in page], "next": next_cursor})
 
 
