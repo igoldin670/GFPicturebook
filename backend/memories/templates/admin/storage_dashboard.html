@@ -1,21 +1,24 @@
 {% extends "admin/base_site.html" %}
 {% block breadcrumbs %}<div class="breadcrumbs"><a href="{% url 'admin:index' %}">Home</a> › Storage</div>{% endblock %}
 {% block content %}
-<p>This page is administrator-only. Files become protected after two SHA-256-verified copies exist on distinct physical drives. Observations are dated; the worker detects drive changes every 10 seconds and checks file integrity on its configured schedule.</p>
-<form method="post" action="/admin/storage/check/">{% csrf_token %}<input type="submit" value="Queue integrity check and repair"></form>
-<h2>Physical drives</h2>
-{% if not storage.drives %}<p>No drives configured. Existing media remains available; redundancy is not active. Configure the server's drive manifest before claiming protection.</p>{% endif %}
-<table><thead><tr><th>Drive</th><th>UUID / path</th><th>Status</th><th>Capacity</th><th>Free</th><th>Health</th><th>Last observation</th></tr></thead><tbody>
+<div class="storage-intro"><p>Monitor drive availability, verified copies, and background repairs. Files become protected after two SHA-256-verified copies exist on distinct physical drives. The worker checks drive availability every 10 seconds and verifies integrity on its configured schedule.</p><form method="post" action="/admin/storage/check/">{% csrf_token %}<input type="submit" value="Queue integrity check and repair"></form></div>
+<div class="storage-metrics" aria-label="Archive protection summary">
+<div><span>Protected assets</span><strong>{{ storage.counts.protected|default:0 }}</strong></div>
+<div><span>Missing a second copy</span><strong>{{ storage.counts.degraded|default:0 }}</strong></div>
+<div><span>No verified drive copy</span><strong>{{ storage.counts.unprotected|default:0 }}</strong></div>
+<div><span>Awaiting first check</span><strong>{{ storage.counts.pending|default:0 }}</strong></div>
+</div>
+<section class="storage-section"><h2>Physical drives</h2>
+{% if not storage.drives %}<p class="storage-note">No drives configured. Existing media remains available; redundancy is not active. Configure the server's drive manifest before claiming protection.</p>{% endif %}
+<div class="storage-table-scroll" tabindex="0" role="region" aria-label="Physical drive observations"><table><thead><tr><th>Drive</th><th>UUID / path</th><th>Status</th><th>Capacity</th><th>Free</th><th>Health</th><th>Last observation</th></tr></thead><tbody>
 {% for drive in storage.drives %}<tr><td>{{ drive.label }}</td><td>{{ drive.uuid }}<br>{{ drive.path }}</td><td>{{ drive.status }}</td><td>{{ drive.total|filesizeformat }}</td><td>{{ drive.free|filesizeformat }}</td><td>{{ drive.health }}<br>Integrity failures observed: {{ drive.integrityFailures }}<br>Last I/O or integrity error: {{ drive.lastIoErrorAt|default:"None recorded" }}</td><td>{{ drive.checkedAt|default:"Never" }}</td></tr>{% endfor %}
-</tbody></table>
-<h2>Protection</h2>
-<p>Protected assets: {{ storage.counts.protected|default:0 }} · Missing a second verified copy: {{ storage.counts.degraded|default:0 }} · No verified drive copy: {{ storage.counts.unprotected|default:0 }} · Awaiting first check: {{ storage.counts.pending|default:0 }} · Legacy media awaiting jobs: {{ storage.unmigrated }}</p>
-<p>SMART hardware diagnostics are not collected by the container. “Accessible” describes filesystem checks, not a hardware-health guarantee. Run smartctl read-only on the host for physical diagnostics. Replication is not a versioned/offsite backup.</p>
-<h2>Files and integrity (100 assets per page)</h2>
-<table><thead><tr><th>File / variant</th><th>Copies</th><th>Protection</th><th>Integrity / last check</th></tr></thead><tbody>
+</tbody></table></div>
+<p>Legacy media awaiting jobs: {{ storage.unmigrated }}. SMART hardware diagnostics are not collected by the container. “Accessible” describes filesystem checks, not a hardware-health guarantee. Run smartctl read-only on the host for physical diagnostics. Replication is not a versioned/offsite backup.</p></section>
+<section class="storage-section"><h2>Files and integrity</h2><p>100 assets per page.</p>
+<div class="storage-table-scroll" tabindex="0" role="region" aria-label="File copies and integrity"><table><thead><tr><th>File / variant</th><th>Copies</th><th>Protection</th><th>Integrity / last check</th></tr></thead><tbody>
 {% for asset in storage.assets %}<tr><td>{{ asset.filename }}<br>{{ asset.variant }} · {{ asset.bytes|filesizeformat }}</td><td>{% for replica in asset.replicas %}{{ replica.drive }}: {{ replica.state }} · {{ replica.verifiedAt|default:"Never verified" }}<br>{% empty %}No recorded replicas{% endfor %}</td><td>{{ asset.protection }}</td><td><code>{{ asset.sha256 }}</code><br>{{ asset.checkedAt|default:"Never" }}</td></tr>{% endfor %}
-</tbody></table>
-<p>{% if storage.page > 1 %}<a href="?page={{ storage.page|add:'-1' }}">Previous</a> · {% endif %}Page {{ storage.page }}{% if storage.hasNext %} · <a href="?page={{ storage.page|add:'1' }}">Next</a>{% endif %}</p>
-<h2>Background jobs</h2>
-<table><thead><tr><th>File</th><th>Status</th><th>Attempts</th><th>Next run</th><th>Last error</th></tr></thead><tbody>{% for job in storage.jobs %}<tr><td>{{ job.photo__original_filename }}</td><td>{{ job.status }}</td><td>{{ job.attempts }}</td><td>{{ job.available_at }}</td><td>{{ job.error_code }}</td></tr>{% empty %}<tr><td colspan="5">No pending storage jobs.</td></tr>{% endfor %}</tbody></table>
+</tbody></table></div>
+<p class="storage-pagination">{% if storage.page > 1 %}<a href="?page={{ storage.page|add:'-1' }}">Previous</a>{% endif %}<span>Page {{ storage.page }}</span>{% if storage.hasNext %}<a href="?page={{ storage.page|add:'1' }}">Next</a>{% endif %}</p></section>
+<section class="storage-section"><h2>Background jobs</h2>
+<div class="storage-table-scroll" tabindex="0" role="region" aria-label="Background storage jobs"><table><thead><tr><th>File</th><th>Status</th><th>Attempts</th><th>Next run</th><th>Last error</th></tr></thead><tbody>{% for job in storage.jobs %}<tr><td>{{ job.photo__original_filename }}</td><td>{{ job.status }}</td><td>{{ job.attempts }}</td><td>{{ job.available_at }}</td><td>{{ job.error_code }}</td></tr>{% empty %}<tr><td colspan="5">No pending storage jobs.</td></tr>{% endfor %}</tbody></table></div></section>
 {% endblock %}

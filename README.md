@@ -1,10 +1,12 @@
 # Our little album
 
-A private, self-hosted picture book for two. Warm ivory, sage, quiet typography, and a focus on your photographs.
+A private, self-hosted picture book for two. Warm ivory, sage, locally hosted Inter, and a focus on your photographs.
 
 **Media archive update:** video polaroids, authenticated seeking/playback, FFmpeg thumbnails/compatible previews, verified redundant-drive storage, repair/integrity workers and an admin-only storage dashboard are implemented. [Configure the archive safely](docs/media-archive.md); redundancy requires existing mounted filesystems and is not active until configured.
 
 **Photo functionality:** secure accounts, single/multiple photo uploads and desktop drag-and-drop, background processing for JPEG/PNG/WebP/HEIC, unchanged originals, EXIF dates/camera/GPS/orientation, private thumbnails/previews/downloads, a paginated chronological gallery, and caption/date editing. Richer album/favorites UI, timeline/search, Trash actions, PWA installation and offsite/versioned backups are still planned. Keep an independent copy of every photo.
+
+**Desktop refinement:** a wider navigation rail, adaptive polaroid grid, modern controls, an orbit emblem, and consistent Inter typography across the gallery and admin. [Design choices and online references](docs/desktop-design.md).
 
 **Dates:** a textured sage memory book with a 3D cover opening, two-sided page turns, and automatic monthly chapters. Browse with the navigation rail or `/#dates`. [Read about date grouping and controls](docs/dates.md).
 
@@ -93,6 +95,7 @@ GFPicturebook/
 │   │   ├── tests.py            # Authentication and relationship regression tests
 │   │   ├── test_photos.py      # Image, storage, processing and privacy regression tests
 │   │   └── management/commands/create_member.py
+│   ├── templates/admin/       # Shared admin identity and theme override
 │   ├── requirements.txt        # Direct dependency constraints
 │   ├── requirements.lock       # Exact resolved Python dependencies
 │   └── manage.py
@@ -101,6 +104,8 @@ GFPicturebook/
 │   ├── src/Gallery.tsx         # Upload progress, shared polaroids and editable media details
 │   ├── src/Dates.tsx           # Monthly chapters, animated book and date navigation
 │   ├── src/Dates.css           # Hardcover, paper depth, page turns and navigation rail
+│   ├── src/Icon.tsx            # Shared SVG orbit and control icons
+│   ├── public/static/          # Self-hosted Inter, license, favicon and admin theme
 │   ├── src/style.css           # Responsive design, local fonts, reduced motion
 │   ├── package-lock.json       # Exact JS dependency resolution
 │   └── vite.config.ts
@@ -121,7 +126,7 @@ GFPicturebook/
     └── caddy-config/
 ```
 
-`backend/web/` and `backend/staticfiles/` are assembled inside the image. Original photographs are never frontend build assets. No external font, image, analytics, or CDN service is used.
+`backend/web/` and `backend/staticfiles/` are assembled inside the image. Original photographs are never frontend build assets. Fonts, icons and illustrations are served locally. No external font, image, analytics, or CDN service is used.
 
 See [verification results and limits](docs/verification.md) for checks actually performed.
 

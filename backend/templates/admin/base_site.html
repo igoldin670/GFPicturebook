@@ -1,0 +1,10 @@
+{% extends "admin/base.html" %}
+{% load static %}
+{% block title %}{{ title }} | Our little album{% endblock %}
+{% block extrastyle %}{{ block.super }}
+<link rel="icon" type="image/svg+xml" href="{% static 'icons/orbit.svg' %}">
+<link rel="stylesheet" href="{% static 'styles/typography.css' %}">
+<link rel="stylesheet" href="{% static 'styles/admin.css' %}">
+{% endblock %}
+{% block branding %}<div class="album-admin-brand"><a href="{% url 'admin:index' %}"><img src="{% static 'icons/orbit.svg' %}" alt="" width="34" height="34"><span>our little album<span class="admin-brand-dot">.</span></span></a><span class="admin-brand-label">Administration</span></div>{% endblock %}
+{% block nav-global %}{% endblock %}

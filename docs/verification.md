@@ -1,3 +1,14 @@
+# Desktop UI refinement: 2026-10-13
+
+- **All 82 existing backend tests passed on PostgreSQL** with the new admin template selected. No model/API/authentication/storage changes or migrations were required. Direct Django development's shared font/stylesheet discovery was checked with `findstatic`; the migration drift and Git whitespace checks passed.
+- TypeScript/Vite production build passed. Inter Variable 5.2.8 is bundled with its SIL Open Font License and loaded from the application's own origin. Chromium confirmed the local Inter face loaded and the UI uses Inter across sign-in, gallery headings, lightbox, and admin pages. No font/style CSP errors or JavaScript page errors were recorded.
+- Real UI uploads of six synthetic photos and a video completed while Dates stayed open. Photo/video lightboxes, playback/seeking, caption/date editing, dynamic monthly chapters, keyboard chapter controls, opening/page-turn animations, reduced motion, browser back/forward/reload, failed-request recovery, and sign-out passed. Completed transfer details collapsed as intended; retry and processing controls remained available.
+- Browser checks passed at 1920, 1440, 1280, 1024, 768, 390, and 320 px across the reviewed views. The wide gallery displayed five columns, phone gallery two. No document horizontal overflow was observed. Desktop, phone, lightbox, Dates, and login screenshots were inspected.
+- The admin home, photo list, storage dashboard, dark theme, and mobile table panels passed with the shared typography. Anonymous media/month APIs returned 401 and member admin storage access returned 403 before the test account received temporary staff permission. The native admin controls and CSRF-protected storage form remain intact.
+- Authored UI copy was checked for em dashes and heart glyphs; the orbit/spark icon family and “Our digital world” wording were reviewed. Synthetic accounts and media were removed after testing, with the local archive worker briefly paused for cleanup and resumed afterward.
+
+Verification scope: Chromium on Linux with emulated screen sizes; Safari/iOS, other physical devices, and a full screen-reader audit were not exercised. Online references and design choices are recorded in [desktop-design.md](desktop-design.md).
+
 # Dates memory book — 2026-10-13
 
 - **All 82 backend tests passed on PostgreSQL**, including seven new calendar tests. Coverage includes capture-local dates across UTC month boundaries, upload/manual date sources, videos, hidden/failed/trashed media, leap years, year rollover, four-digit calendar extremes, invalid filters, complete month pagination, scoped signed cursors, manual chapter changes, and session authorization.
