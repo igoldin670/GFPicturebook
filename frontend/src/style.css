@@ -222,3 +222,32 @@ progress { width: 100%; accent-color: var(--accent); height: 5px; border: 0; bor
   *, *::before, *::after { transition: none !important; animation: none !important; }
   .photo-card:hover, .button:hover:enabled { transform: none; }
 }
+
+/* The title is the focal point; supporting controls keep their quiet Inter rhythm. */
+header > .quiet { margin-left: auto; }
+h1, .dates-heading h1 { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
+h1 em { font-family: inherit; font-weight: 400; font-style: italic; }
+.welcome { display: block; text-align: center; padding: 64px 0 44px; }
+.welcome h1 { font-size: clamp(40px, 4.5vw, 65px); line-height: 1.12; letter-spacing: -1.8px; margin: 0; }
+.welcome h1:focus, .dates-heading h1:focus { outline: none; }
+.stats { display: flex; align-items: center; justify-content: center; gap: 44px; margin-bottom: 42px; padding: 16px 0 28px; border-bottom: 1px solid var(--line); }
+.stats > div { display: flex; flex-direction: row; align-items: baseline; gap: 9px; padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
+.stats strong { font-size: 22px; font-weight: 500; letter-spacing: -.5px; }
+.stats span { font-size: 11px; }
+.library-heading h2 { font-size: 21px; letter-spacing: -.5px; }
+.upload-formats { grid-column: 2 / -1; color: var(--muted); }
+.upload-formats summary { font-size: 10px; font-weight: 400; min-height: 0; padding: 5px 0; }
+.upload-formats small { margin-top: 7px; }
+.login-copy h1 { font-weight: 400; }
+@media (max-width: 800px) {
+  .welcome { padding: 44px 0 28px; }
+  .welcome h1 { font-size: clamp(36px, 6.2vw, 52px); letter-spacing: -1.2px; }
+  .stats { gap: 24px; margin-bottom: 28px; padding-bottom: 24px; }
+}
+@media (max-width: 600px) {
+  .stats { gap: 22px; }
+  .stats > div { flex-direction: column; align-items: center; gap: 4px; }
+  .stats strong { font-size: 21px; }
+  .stats span { font-size: 9px; }
+  .upload-formats { grid-column: 1 / -1; text-align: center; }
+}

@@ -104,7 +104,7 @@ export default function Dates({csrf, revision, changed}: {csrf: string; revision
   const previous = chapters[index - 1]; const next = chapters[index + 1];
   const unavailable = busy || loading || phase !== 'open';
   return <section className="dates-section" aria-labelledby="dates-heading">
-    <div className="dates-heading"><p className="eyebrow">OUR STORY, CHAPTER BY CHAPTER</p><h1 id="dates-heading" tabIndex={-1}>Some days deserve<br/><em>a page of their own.</em></h1><p className="intro">Open a chapter. Stay a little while.</p></div>
+    <div className="dates-heading"><h1 id="dates-heading" tabIndex={-1}>Some days deserve<br/><em>a page of their own.</em></h1></div>
     <div className={`book-scene book-${phase} ${turn ? 'book-turning' : ''}`} aria-busy={busy || loading}>
       <div className="book-ground-shadow" aria-hidden="true"/>
       <div className="memory-book">
