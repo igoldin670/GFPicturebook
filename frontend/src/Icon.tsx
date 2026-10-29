@@ -1,7 +1,9 @@
 import type { SVGProps } from 'react';
 
-type Name = 'orbit' | 'spark' | 'photo' | 'book' | 'upload' | 'plus' | 'arrow' | 'external' | 'logout' | 'play' | 'film' | 'close' | 'lock';
+type Name = 'chevronLeft' | 'chevronRight' | 'orbit' | 'spark' | 'photo' | 'book' | 'upload' | 'plus' | 'arrow' | 'external' | 'logout' | 'play' | 'film' | 'close' | 'lock';
 const paths: Record<Name, React.ReactNode> = {
+  chevronLeft: <path d="m15 5-7 7 7 7"/>,
+  chevronRight: <path d="m9 5 7 7-7 7"/>,
   orbit: <><circle cx="12" cy="12" r="6.7"/><ellipse cx="12" cy="12" rx="11" ry="3.5" transform="rotate(-40 12 12)"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="20" cy="5" r="1.7" fill="currentColor" stroke="none"/></>,
   spark: <path d="m12 3 2.8 6.2L21 12l-6.2 2.8L12 21l-2.8-6.2L3 12l6.2-2.8Z"/>,
   photo: <><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 16 5-5 4 4 4-5 5 6"/></>,

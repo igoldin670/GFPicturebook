@@ -6,6 +6,8 @@ A private, self-hosted picture book for two. Warm ivory, sage, locally hosted In
 
 **Photo functionality:** secure accounts, single/multiple photo uploads and desktop drag-and-drop, background processing for JPEG/PNG/WebP/HEIC, unchanged originals, EXIF dates/camera/GPS/orientation, private thumbnails/previews/downloads, a paginated chronological gallery, and caption/date editing. Richer album/favorites UI, timeline/search, Trash actions, PWA installation and offsite/versioned backups are still planned. Keep an independent copy of every photo.
 
+**Version 1.1:** select multiple photos/videos to assign dates, browse Dates by year/month or arrow keys, upload through a centered panel, and enjoy a brief sign-in flutter. [Release notes, metadata recovery, and upgrade instructions](docs/version-1.1.md).
+
 **Desktop refinement:** a wider navigation rail, adaptive polaroid grid, modern controls, an orbit emblem, and consistent Inter typography across the gallery and admin. [Design choices and online references](docs/desktop-design.md).
 
 **Dates:** a textured sage memory book with a 3D cover opening, two-sided page turns, and automatic monthly chapters. Browse with the navigation rail or `/#dates`. [Read about date grouping and controls](docs/dates.md).

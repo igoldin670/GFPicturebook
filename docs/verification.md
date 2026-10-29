@@ -1,3 +1,15 @@
+# Version 1.1: 2026-10-29
+
+- Verified the latest feature baseline at `0bf530d` before implementing; the starting workspace had been an older main snapshot.
+- **All 97 backend tests passed on disposable PostgreSQL 17**, without skipped tests. New coverage includes atomic mixed photo/video date assignments, matching-date manual overrides, duplicate IDs, invalid/unavailable IDs, 500-item batches spanning cursor pages, CSRF/authentication, database failure, and overlapping batch transactions. Existing ingestion, video, archive/integrity, queue, and authorization tests remained green.
+- Synthetic nested EXIF, ISO/offset, XMP, HEIC, missing-metadata, and embedded-video creation date cases passed. Reprocessing preserves manual dates and original bytes. Explicit metadata recovery defaults to dry-run, skips manual dates, rechecks concurrent manual edits, and reports corrupted sources without changing dates.
+- Production TypeScript/Vite build, migration drift check, and whitespace checks passed. Frontend version is 1.1.0; no application dependency or database schema change was introduced.
+- Chromium exercised the production-built frontend with an isolated SQLite database/media root and real image/FFmpeg processing. Mixed uploads, one-time five-polaroid login flutter, failed bulk-save recovery, date-only faces, preserved captions, sidebar years/months, book arrows, keyboard exclusions, nearest-month recovery, playback/seeking, original download hash, reduced motion, and member/admin authorization passed.
+- Browser selection persisted across a 48-to-53-record cursor transition, cleared on section change, and successfully updated 53 loaded memories. Calendar text retained the correct day in Pacific/Apia, including its historically skipped date. Reviewed 1920, 1440, 1024, 768, 390, and 320 px layouts without document horizontal overflow.
+- Browser fixtures/accounts were cleaned up. No existing user media or physical drives were used or changed.
+
+Limitations: the reported Android failure is not device-confirmed because affected untouched originals and shared/exported counterparts were not supplied. Fixtures are synthetic; see [version-1.1.md](version-1.1.md). Browser checks used Chromium with emulated viewport/time-zone preferences, not physical Android/iOS devices or a full screen-reader audit. The complete cold Docker application build was not repeated; PostgreSQL tests and the compiled frontend were verified separately.
+
 # Desktop UI refinement: 2026-10-13
 
 - **All 82 existing backend tests passed on PostgreSQL** with the new admin template selected. No model/API/authentication/storage changes or migrations were required. Direct Django development's shared font/stylesheet discovery was checked with `findstatic`; the migration drift and Git whitespace checks passed.

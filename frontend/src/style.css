@@ -251,3 +251,61 @@ h1 em { font-family: inherit; font-weight: 400; font-style: italic; }
   .stats span { font-size: 9px; }
   .upload-formats { grid-column: 1 / -1; text-align: center; }
 }
+
+/* v1.1 selection and the single, centered upload entry point. */
+.drop-zone { display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 30px 24px; text-align: center; }
+.upload-polaroids { position: relative; width: 80px; height: 55px; margin-bottom: 2px; color: var(--accent); }
+.upload-polaroids > span { position: absolute; width: 37px; height: 45px; top: 5px; left: 12px; border: 5px solid var(--surface); border-bottom-width: 12px; border-radius: 2px; background: #bdc9b1; box-shadow: 0 2px 6px #343c3415; transform: rotate(-14deg); }
+.upload-polaroids > span:nth-child(2) { left: 35px; transform: rotate(13deg); background: #dfc6ad; }
+.upload-polaroids > .icon { position: absolute; top: 17px; left: 43px; width: 18px; height: 18px; }
+.add-memories { min-width: 180px; }
+.upload-instruction { margin: 0; font-size: 11px; color: var(--muted); }
+.upload-formats { max-width: 650px; }
+.selectable-memory { position: relative; min-width: 0; }
+.memory-checkbox { position: absolute; top: 18px; left: 18px; width: 22px; height: 22px; margin: 0; padding: 0; accent-color: var(--accent); cursor: pointer; z-index: 1; }
+.memory-selected .photo-card { border-color: var(--accent); box-shadow: 0 0 0 3px #7d946c77; }
+.selection-controls { min-width: 0; }
+.selection-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.selection-toolbar > span { padding-right: 8px; font-size: 12px; font-weight: 550; }
+.selection-toolbar .quiet { padding: 9px 10px; }
+.bulk-date-dialog { border: 1px solid var(--line); border-radius: 18px; padding: 30px; width: min(460px, 92vw); background: var(--surface); color: inherit; max-height: 90dvh; overflow: auto; }
+.bulk-date-dialog::backdrop { background: #202820a6; backdrop-filter: blur(4px); }
+.bulk-date-dialog h2 { font-size: 25px; margin-top: 0; }
+.bulk-date-dialog p { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.bulk-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.bulk-actions .button { width: auto; margin: 0; }
+.library-heading:has(.selection-toolbar), .chapter-collection-heading:has(.selection-toolbar) { flex-wrap: wrap; }
+.book-navigation button { border-radius: 9px; min-height: 48px; padding: 8px; transition: background .2s; }
+.book-navigation button:hover:enabled { background: #c4b68b22; }
+.book-navigation .icon { width: 20px; height: 20px; }
+.book-navigation button:disabled { opacity: .35; }
+.dates-subsection { margin: 8px 0 0 14px; padding: 0 10px 0 14px; border-left: 1px solid var(--line); }
+.dates-subsection > summary { font-size: 11px; padding: 10px 0; }
+.dates-subsection label { font-size: 10px; margin: 8px 0; }
+.dates-subsection select { width: 100%; min-height: 40px; padding: 8px; font-size: 12px; }
+.sidebar-months { display: flex; flex-direction: column; gap: 3px; margin: 10px 0; }
+.sidebar-months .quiet { width: 100%; justify-content: space-between; font-size: 11px; padding: 10px; }
+.sidebar-months .quiet[aria-current] { background: var(--accent-soft); color: #465b3e; font-weight: 600; }
+.sidebar-months span { font-size: 10px; opacity: .75; }
+.dates-subsection > p { font-size: 11px; line-height: 1.7; color: var(--muted); }
+.sign-in-flutter { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 30; contain: strict; }
+.flutter-polaroid { position: absolute; top: -100px; width: 55px; height: 65px; padding: 6px 6px 15px; background: #fffdf7; border: 1px solid #e1dfd1; border-radius: 2px; box-shadow: 0 5px 15px #343c3418; animation: polaroid-fall 2s cubic-bezier(.25,.55,.5,1) both; }
+.flutter-polaroid i { display: block; width: 100%; height: 100%; background: linear-gradient(150deg,#dce2ce 50%,#98ac8a 51%,#7d9370); }
+.flutter-0 { left: 12%; --tilt: -20deg; }
+.flutter-1 { left: 31%; --tilt: 17deg; animation-delay: .12s; }
+.flutter-2 { left: 49%; --tilt: -12deg; animation-delay: .25s; }
+.flutter-3 { left: 68%; --tilt: 24deg; animation-delay: .07s; }
+.flutter-4 { left: 85%; --tilt: -22deg; animation-delay: .2s; }
+.flutter-1 i, .flutter-4 i { background: linear-gradient(150deg,#e8d5bd 50%,#c5ac8c 51%,#9da98c); }
+@keyframes polaroid-fall { 0% { transform: translate3d(-12px,0,0) rotate(var(--tilt)); opacity: 0; } 15% { opacity: .85; } 75% { opacity: .7; } 100% { transform: translate3d(30px, calc(100dvh + 120px),0) rotate(calc(var(--tilt) + 40deg)); opacity: 0; } }
+@media(max-width:800px) { .album-navigation-inner { flex-wrap: wrap; }.dates-sidebar-host { flex-basis: 100%; }.dates-subsection { margin: 0; padding: 4px 12px; border-left: 0; }.sidebar-months { flex-direction: row; flex-wrap: wrap; }.sidebar-months .quiet { width: auto; gap: 12px; }.dates-subsection select { width: 150px; }.chapter-collection-heading { flex-wrap: wrap; } }
+@media(prefers-reduced-motion:reduce) { .sign-in-flutter { display: none; } }
+
+.dates-sidebar-host:empty { display: none; }
+.sidebar-months { max-height: 45svh; overflow: auto; }
+@media(max-width:800px) { .sidebar-months { max-height: none; } }
+
+/* The cover has finished rotating: place it beneath the paper without a second transition. */
+.book-open .book-front-cover { transition: none; }
+
+.book-keepsake .memory-checkbox { width: 18px; height: 18px; top: 10px; left: 10px; }

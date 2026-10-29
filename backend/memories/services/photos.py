@@ -182,6 +182,11 @@ def capture_date(exif):
         try:
             local = datetime.strptime(raw, "%Y:%m:%d %H:%M:%S")
         except ValueError:
+            # Some exporters store ISO 8601 rather than EXIF's colon-separated date.
+            from .metadata import parsed_capture
+            result = parsed_capture(raw, Photo.DateSource.EXIF, clean_text(merged.get(offset_tag), 20))
+            if result:
+                return result
             continue
         fraction = clean_text(merged.get(subsecond_tag), 12)
         if fraction.isdigit():
@@ -271,7 +276,9 @@ def process_image(photo, path):
                 photo.camera_make = clean_text(exif.get(271))
                 photo.camera_model = clean_text(exif.get(272))
                 # Upload-time fallback was recorded at admission and never shifts on retry.
-                for key, value in {**capture_date(exif), **gps_coordinates(exif)}.items():
+                from .metadata import image_capture, apply_capture
+                apply_capture(photo, image_capture(original))
+                for key, value in gps_coordinates(exif).items():
                     setattr(photo, key, value)
                 oriented = ImageOps.exif_transpose(original)
                 profile = original.info.get("icc_profile")

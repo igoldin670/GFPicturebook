@@ -57,6 +57,8 @@ def process_video(photo, source):
         formats = set(metadata['format']['format_name'].split(','))
         if not formats.intersection({'mov', 'mp4', 'm4a', '3gp', '3g2', 'mj2', 'matroska', 'webm', 'avi'}):
             raise ValueError()
+        from .metadata import video_capture, apply_capture
+        apply_capture(photo, video_capture(metadata))
         photo.media_kind = 'video'
         photo.mime_type = ('video/x-msvideo' if 'avi' in formats else 'video/webm' if formats <= {'matroska', 'webm'} and stream['codec_name'] in {'vp8', 'vp9', 'av1'} else 'video/x-matroska' if 'matroska' in formats else 'video/quicktime' if Path(photo.original_filename).suffix.lower() == '.mov' else 'video/mp4')
         photo.width, photo.height, photo.duration = width, height, duration

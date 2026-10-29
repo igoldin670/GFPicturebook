@@ -220,3 +220,31 @@ def edit(request, identifier):
     # Original EXIF facts and bytes remain untouched by a calendar-date correction.
     photo.save(update_fields=["caption", "display_date", "date_source"])
     return JsonResponse(serialize(photo))
+
+
+@require_POST
+@member
+def bulk_date(request):
+    """The shared library uses the same member policy as single-memory editing."""
+    from django.db import transaction
+    try:
+        if request.content_type != 'application/json':
+            raise ValueError()
+        payload = json.loads(request.body)
+        values = payload['ids']
+        if not isinstance(values, list) or not 1 <= len(values) <= 500:
+            raise ValueError()
+        if not all(isinstance(value, str) for value in values):
+            raise ValueError()
+        identifiers = {uuid.UUID(value) for value in values}
+        if not isinstance(payload['date'], str) or not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}', payload['date']):
+            raise ValueError()
+        calendar = date.fromisoformat(payload['date'])
+    except (KeyError, ValueError, TypeError, AttributeError):
+        return JsonResponse({'error': 'Choose 1–500 memories and a valid calendar date.'}, status=400)
+    with transaction.atomic():
+        rows = list(visible().select_for_update().filter(pk__in=identifiers).order_by('pk'))
+        if len(rows) != len(identifiers):
+            return JsonResponse({'error': 'Some selected memories are no longer available. Nothing was changed.'}, status=404)
+        updated = Photo.objects.filter(pk__in=identifiers).update(display_date=calendar, date_source=Photo.DateSource.MANUAL)
+    return JsonResponse({'updated': updated, 'date': calendar.isoformat()})
