@@ -1,5 +1,7 @@
 # Version 1.1: dates and little moments
 
+Historical release notes: the [Living scrapbook update](living-scrapbook.md) supersedes upload-date fallback and the five-card sign-in flutter, and adds a database migration.
+
 Built on feature branch baseline `0bf530d`, retaining the centered serif title, Inter controls, quiet cream/sage design, existing video polaroids, and archive protections. No schema migration, new application dependency, drive operation, or automatic historical-date rewrite is introduced.
 
 ## Selecting and dating memories

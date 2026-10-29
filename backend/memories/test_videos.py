@@ -84,7 +84,9 @@ class VideoTests(TestCase):
         self.assertEqual(self.client.get(url,HTTP_RANGE='bytes=0-10').status_code,401)
     def test_gallery_metadata_contains_no_storage_information(self):
         photo = self.upload(self.video())
-        item = self.client.get('/api/photos/').json()['photos'][0]
+        item = self.client.get('/api/photos/?undated=1').json()['photos'][0]
+        self.assertIsNone(item['date'])
+        self.assertEqual(item['dateSource'], 'missing')
         self.assertEqual(item['kind'],'video')
         self.assertEqual(item['byteSize'],photo.byte_size)
         self.assertGreater(item['duration'],0)

@@ -1,5 +1,7 @@
 # Private access and security
 
+For upgrades that introduce nullable dates, follow the [Living scrapbook backup and upgrade procedure](living-scrapbook.md#upgrade-and-rollback) before starting the new app.
+
 ## Recommended: Tailscale + application login
 
 Install Tailscale on the Linux server and both people's phones/computers using its official instructions. Invite your partner to your tailnet; restrict ACLs/grants to these two identities and this server's HTTPS service. Use MFA on the identity provider. Review Tailscale's identity/control-plane dependency and available plans; WireGuard is an alternative if you prefer managing VPN keys and routing yourself.

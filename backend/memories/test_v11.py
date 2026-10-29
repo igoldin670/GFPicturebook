@@ -151,6 +151,17 @@ class CaptureMetadataTests(TestCase):
         self.assertEqual((self.root/p.original_key).read_bytes(),data)
 
 
+    def test_reread_missing_dates_stays_null_until_explicit_apply(self):
+        exif=Image.Exif();exif[36867]='2020:01:02 03:04:05'
+        data=self.jpeg(exif);p=self.memory(data,'missing')
+        Photo.objects.filter(pk=p.pk).update(display_date=None)
+        call_command('reread_capture_dates',str(p.pk),stdout=io.StringIO())
+        p.refresh_from_db();self.assertIsNone(p.display_date);self.assertEqual(p.date_source,'missing')
+        call_command('reread_capture_dates',str(p.pk),apply=True,stdout=io.StringIO())
+        p.refresh_from_db();self.assertEqual(p.display_date,date(2020,1,2));self.assertEqual(p.date_source,'exif')
+        self.assertEqual((self.root/p.original_key).read_bytes(),data)
+
+
     def test_recovery_reports_corrupted_sources_and_preserves_dates(self):
         from django.core.management.base import CommandError
         p=self.memory(self.jpeg());(self.root/p.original_key).write_bytes(b'corrupted synthetic original')

@@ -152,7 +152,7 @@ def receive(request, identifier, filename):
                 photo = Photo.objects.create(id=identifier, original_filename=filename, original_key=key,
                     sha256=digest.hexdigest(), byte_size=size, mime_type="application/octet-stream",
                     media_kind="video" if video else "photo", uploaded_by=request.user,
-                    display_date=timezone.localdate(), date_source=Photo.DateSource.UPLOAD)
+                    display_date=None, date_source=Photo.DateSource.MISSING)
                 if drive:
                     asset = StoredAsset.objects.create(photo=photo, variant='original', key=key,
                         sha256=photo.sha256, byte_size=size, protection='degraded', checked_at=timezone.now())

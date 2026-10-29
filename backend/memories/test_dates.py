@@ -44,7 +44,7 @@ class DateChapterTests(TestCase):
         self.memory('2026-01-01')
         for month, expected in [('2024-02', leap), ('2025-12', december)]:
             self.assertEqual([row['id'] for row in self.client.get('/api/photos/', {'month': month}).json()['photos']], [str(expected.id)])
-        self.assertEqual(self.client.get('/api/photos/?month=2024-01').json(), {'photos': [], 'next': None})
+        self.assertEqual(self.client.get('/api/photos/?month=2024-01').json(), {'photos': [], 'next': None, 'count': 0})
 
     def test_invalid_months_and_unsigned_cursor_rejected(self):
         for month in ['2026-13', '2026-00', '0000-10', '26-10', '2026-1', '2026-10-01', '', '../', '٢٠٢٦-١٠']:

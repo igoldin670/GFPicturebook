@@ -30,7 +30,7 @@ def visible():
 
 
 def serialize(photo):
-    return {"id": str(photo.id), "filename": photo.original_filename, "date": photo.display_date.isoformat(),
+    return {"id": str(photo.id), "filename": photo.original_filename, "date": photo.display_date.isoformat() if photo.display_date else None,
             "dateSource": photo.date_source, "caption": photo.caption, "width": photo.width, "height": photo.height,
             "kind": photo.media_kind, "duration": photo.duration, "byteSize": photo.byte_size,
             "playback": f"/api/photos/{photo.id}/stream/" if photo.playback_mime else None,
@@ -74,45 +74,66 @@ def upload_limits(request):
         "batchMaxFiles": settings.UPLOAD_BATCH_LIMIT})
 
 
+def media_filter(request, query):
+    kind = request.GET.get("kind")
+    if kind is not None and kind not in {"photo", "video"}:
+        raise ValueError("Choose photos or videos, or omit kind for all media.")
+    return query.filter(media_kind=kind) if kind else query
+
+
 @require_GET
 @member
 def months(request):
-    # display_date already honors capture metadata, upload fallback, and manual edits.
-    chapters = visible().annotate(month=TruncMonth("display_date")).values("month").annotate(count=Count("id")).order_by("month")
+    try:
+        query = media_filter(request, visible().filter(display_date__isnull=False))
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    chapters = query.annotate(month=TruncMonth("display_date")).values("month").annotate(count=Count("id")).order_by("month")
     return JsonResponse({"months": [{"month": row["month"].isoformat()[:7], "count": row["count"]} for row in chapters]})
 
 
 @require_GET
 @member
 def gallery(request):
-    query = visible()
     month = request.GET.get("month")
-    salt = "photo-page"
-    if month is not None:
-        try:
+    undated = request.GET.get("undated")
+    try:
+        if undated not in {None, "1"} or (undated and month is not None):
+            raise ValueError("Missing dates cannot be combined with a month.")
+        query = media_filter(request, visible().filter(display_date__isnull=bool(undated)))
+        if month is not None:
             if not re.fullmatch(r"[0-9]{4}-[0-9]{2}", month):
-                raise ValueError()
+                raise ValueError("Choose a valid month in YYYY-MM format.")
             year, number = map(int, month.split("-"))
             start = date(year, number, 1)
             query = query.filter(display_date__gte=start)
             if (year, number) != (9999, 12):
                 end = date(year + 1, 1, 1) if number == 12 else date(year, number + 1, 1)
                 query = query.filter(display_date__lt=end)
-            salt += ":" + month
-        except ValueError:
-            return JsonResponse({"error": "Choose a valid month in YYYY-MM format."}, status=400)
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    count = query.count()
+    salt = f"photo-page:v2:{request.GET.get('kind', 'all')}:{'undated' if undated else 'dated'}:{month or ''}"
+    field = "uploaded_at" if undated else "display_date"
     cursor = request.GET.get("cursor")
     if cursor:
         try:
             calendar, identifier = signing.loads(cursor, salt=salt, max_age=86400)
-            calendar, identifier = date.fromisoformat(calendar), uuid.UUID(identifier)
+            if undated:
+                from datetime import datetime
+                calendar = datetime.fromisoformat(calendar)
+                if calendar.utcoffset() is None:
+                    raise ValueError()
+            else:
+                calendar = date.fromisoformat(calendar)
+            identifier = uuid.UUID(identifier)
         except (signing.BadSignature, ValueError, TypeError):
             return JsonResponse({"error": "This page has expired. Refresh the gallery."}, status=400)
-        query = query.filter(Q(display_date__lt=calendar) | Q(display_date=calendar, id__lt=identifier))
-    rows = list(query.order_by("-display_date", "-id")[:49])
+        query = query.filter(Q(**{field + "__lt": calendar}) | Q(**{field: calendar, "id__lt": identifier}))
+    rows = list(query.order_by("-" + field, "-id")[:49])
     page = rows[:48]
-    next_cursor = signing.dumps([page[-1].display_date.isoformat(), str(page[-1].id)], salt=salt) if len(rows) > 48 else None
-    return JsonResponse({"photos": [serialize(photo) for photo in page], "next": next_cursor})
+    next_cursor = signing.dumps([getattr(page[-1], field).isoformat(), str(page[-1].id)], salt=salt) if len(rows) > 48 else None
+    return JsonResponse({"photos": [serialize(photo) for photo in page], "next": next_cursor, "count": count})
 
 
 @require_GET
@@ -207,18 +228,24 @@ def edit(request, identifier):
     try:
         payload = json.loads(request.body)
         caption = payload["caption"]
-        calendar = date.fromisoformat(payload["date"])
+        raw_date = payload["date"]
+        if raw_date is not None and (not isinstance(raw_date, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", raw_date)):
+            raise ValueError()
+        calendar = date.fromisoformat(raw_date) if raw_date is not None else None
         if not isinstance(caption, str) or len(caption) > 5000:
             raise ValueError()
     except (KeyError, ValueError, TypeError):
         return JsonResponse({"error": "Provide a valid date and a caption of at most 5,000 characters."}, status=400)
-    photo = get_object_or_404(visible(), pk=identifier)
-    photo.caption = caption
-    if photo.display_date != calendar:
-        photo.display_date = calendar
-        photo.date_source = Photo.DateSource.MANUAL
-    # Original EXIF facts and bytes remain untouched by a calendar-date correction.
-    photo.save(update_fields=["caption", "display_date", "date_source"])
+    from django.db import transaction
+    with transaction.atomic():
+        photo = get_object_or_404(visible().select_for_update(), pk=identifier)
+        if calendar is None and photo.display_date is not None:
+            return JsonResponse({"error": "An assigned date cannot be cleared."}, status=400)
+        photo.caption = caption
+        if calendar is not None and photo.display_date != calendar:
+            photo.display_date = calendar
+            photo.date_source = Photo.DateSource.MANUAL
+        photo.save(update_fields=["caption", "display_date", "date_source"])
     return JsonResponse(serialize(photo))
 
 

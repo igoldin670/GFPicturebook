@@ -289,15 +289,6 @@ h1 em { font-family: inherit; font-weight: 400; font-style: italic; }
 .sidebar-months span { font-size: 10px; opacity: .75; }
 .dates-subsection > p { font-size: 11px; line-height: 1.7; color: var(--muted); }
 .sign-in-flutter { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 30; contain: strict; }
-.flutter-polaroid { position: absolute; top: -100px; width: 55px; height: 65px; padding: 6px 6px 15px; background: #fffdf7; border: 1px solid #e1dfd1; border-radius: 2px; box-shadow: 0 5px 15px #343c3418; animation: polaroid-fall 2s cubic-bezier(.25,.55,.5,1) both; }
-.flutter-polaroid i { display: block; width: 100%; height: 100%; background: linear-gradient(150deg,#dce2ce 50%,#98ac8a 51%,#7d9370); }
-.flutter-0 { left: 12%; --tilt: -20deg; }
-.flutter-1 { left: 31%; --tilt: 17deg; animation-delay: .12s; }
-.flutter-2 { left: 49%; --tilt: -12deg; animation-delay: .25s; }
-.flutter-3 { left: 68%; --tilt: 24deg; animation-delay: .07s; }
-.flutter-4 { left: 85%; --tilt: -22deg; animation-delay: .2s; }
-.flutter-1 i, .flutter-4 i { background: linear-gradient(150deg,#e8d5bd 50%,#c5ac8c 51%,#9da98c); }
-@keyframes polaroid-fall { 0% { transform: translate3d(-12px,0,0) rotate(var(--tilt)); opacity: 0; } 15% { opacity: .85; } 75% { opacity: .7; } 100% { transform: translate3d(30px, calc(100dvh + 120px),0) rotate(calc(var(--tilt) + 40deg)); opacity: 0; } }
 @media(max-width:800px) { .album-navigation-inner { flex-wrap: wrap; }.dates-sidebar-host { flex-basis: 100%; }.dates-subsection { margin: 0; padding: 4px 12px; border-left: 0; }.sidebar-months { flex-direction: row; flex-wrap: wrap; }.sidebar-months .quiet { width: auto; gap: 12px; }.dates-subsection select { width: 150px; }.chapter-collection-heading { flex-wrap: wrap; } }
 @media(prefers-reduced-motion:reduce) { .sign-in-flutter { display: none; } }
 
@@ -309,3 +300,32 @@ h1 em { font-family: inherit; font-weight: 400; font-style: italic; }
 .book-open .book-front-cover { transition: none; }
 
 .book-keepsake .memory-checkbox { width: 18px; height: 18px; top: 10px; left: 10px; }
+
+/* Shared, quiet media switch and the persistent date inbox. */
+.media-filter { display: flex; width: fit-content; max-width: 100%; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: #eeeee4; margin: 0 0 24px; }
+.media-filter button { border: 0; border-radius: 10px; padding: 10px 18px; min-height: 44px; background: transparent; color: #65715b; font: 500 12px var(--font-ui); transition: background .2s, box-shadow .2s; }
+.media-filter button[aria-pressed="true"] { background: var(--surface); color: #405439; box-shadow: 0 2px 6px #343c3410; }
+.media-filter button:disabled { opacity: .5; cursor: default; }
+.media-filter button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dates-section > .media-filter { margin: 24px auto 0; }
+.album-navigation .missing-dates-link { font-size: 11px; margin: 0 0 10px 23px; padding: 9px 12px; min-height: 44px; }
+.nav-count, .missing-count { font: 500 11px var(--font-ui); padding: 4px 7px; background: #e6eadf; border-radius: 20px; }
+.nav-count { margin-left: auto; }
+.missing-count { display: inline-block; margin-left: 12px; vertical-align: middle; }
+.photo-card:active { transform: translateY(-1px); }
+.photo-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+
+/* Three short waves, with independent falling and fluttering transforms. */
+.falling-memory { position: absolute; top: -180px; width: var(--size); aspect-ratio: .8; animation: cascade-fall var(--fall) var(--delay) cubic-bezier(.3,.2,.65,.85) both; will-change: transform, opacity; perspective: 500px; }
+.cascade-paper { display: block; height: 100%; padding: 6px 6px 16px; background: #fffdf7; border: 1px solid #e5decb; border-radius: 2px; box-shadow: 2px 6px 12px #343c3426; animation: cascade-flutter var(--flutter) ease-in-out infinite alternate; }
+.cascade-paper i { display: block; width: 100%; height: 100%; background: linear-gradient(150deg,#e2d0b4 30%,#c4cdb4 31%,#859f80 70%,#70886a); }
+.falling-memory:nth-child(3n) i { background: linear-gradient(30deg,#c89988,#edd5b1 60%,#c0c7b2); }
+.falling-memory:nth-child(5n) i { background: linear-gradient(150deg,#becad0 40%,#a7b49a 41%,#687e64); }
+.scrapbook-sheet { padding: 8px; background: repeating-linear-gradient(0deg,#f5eddb 0 10px,#d7c9a955 11px,#f5eddb 12px); }
+.scrapbook-sheet i { opacity: .25; height: 55%; border: 4px solid #fffdf7; transform: rotate(-6deg); }
+@keyframes cascade-fall { 0% { opacity: 0; transform: translate3d(0,-20px,0) rotate(var(--tilt)); } 9% { opacity: .95; } 80% { opacity: .9; } 100% { opacity: 0; transform: translate3d(var(--drift),calc(100dvh + 360px),0) rotate(var(--spin)); } }
+@keyframes cascade-flutter { from { transform: rotateY(-20deg) rotateX(12deg) rotate(-5deg); } to { transform: rotateY(28deg) rotateX(-18deg) rotate(6deg); } }
+@media(max-width:800px) { .album-navigation .missing-dates-link { margin: 3px 0; }.media-filter button { padding: 9px 16px; } }
+@media(prefers-reduced-motion:reduce) { .falling-memory, .cascade-paper { animation: none; }.photo-card:active { transform: none; } }
+
+.welcome[hidden], .stats[hidden] { display: none; }

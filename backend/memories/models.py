@@ -8,7 +8,8 @@ class Photo(models.Model):
     class DateSource(models.TextChoices):
         EXIF = "exif", "EXIF"
         FILE = "file", "Trusted import file date"
-        UPLOAD = "upload", "Upload time"
+        UPLOAD = "upload", "Upload time (legacy)"
+        MISSING = "missing", "Date needed"
         MANUAL = "manual", "Manually edited"
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -34,7 +35,7 @@ class Photo(models.Model):
     # Calendar date is explicit: unknown EXIF timezones must not shift a memory's day.
     taken_local = models.CharField(max_length=32, blank=True)
     taken_offset_minutes = models.SmallIntegerField(null=True, blank=True)
-    display_date = models.DateField(db_index=True)
+    display_date = models.DateField(db_index=True, null=True, blank=True)
     date_source = models.CharField(max_length=10, choices=DateSource.choices)
     exif_date_raw = models.CharField(max_length=100, blank=True)
     caption = models.TextField(blank=True, max_length=5000)

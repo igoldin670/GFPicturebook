@@ -67,7 +67,7 @@ class SecurityTests(TestCase):
             AlbumPhoto.objects.create(album=album,photo=photo)
         Favorite.objects.create(user=self.user,photo=photo)
         self.login()
-        self.assertEqual(self.client.get("/api/summary/").json(), {"photos":1,"albums":2,"favorites":1})
+        self.assertEqual(self.client.get("/api/summary/").json(), {"photos":1,"albums":2,"favorites":1,"undatedCount":0})
         other = get_user_model().objects.create_user("sam")
         self.client.force_login(other)
         self.assertEqual(self.client.get("/api/summary/").json()["favorites"], 0)

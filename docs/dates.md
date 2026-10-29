@@ -1,3 +1,5 @@
+For current missing-date and media-filter behavior, see [Living scrapbook](living-scrapbook.md). Undated media is excluded from chapters, and the shared media filter controls chapter counts and previews.
+
 # Dates: the memory book
 
 Sign in and choose **Dates** in the navigation rail (a compact row on phones), or open the site's `/#dates` URL. A sage hardcover opens into monthly chapters. The subtle controls inside the book turn to the previous or next populated month; the year dropdown and populated month buttons beneath **Dates** jump directly to a chapter. Left/Right Arrow navigates chapters when you are not editing, selecting, or using a form control. The polaroids beneath the book show that chapter's collection, with pagination for larger months. Photos and video polaroids use the same editable lightbox and unchanged-original downloads as Memories.

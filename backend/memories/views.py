@@ -43,7 +43,7 @@ def summary(request):
     if not request.user.is_authenticated:
         return JsonResponse({"error": "Sign in required."}, status=401)
     visible = Photo.objects.filter(trashed_at__isnull=True, status=Photo.Status.READY)
-    return JsonResponse({"photos": visible.count(), "albums": Album.objects.count(), "favorites": Favorite.objects.filter(user=request.user, photo__in=visible).count()})
+    return JsonResponse({"photos": visible.count(), "undatedCount": visible.filter(display_date__isnull=True).count(), "albums": Album.objects.count(), "favorites": Favorite.objects.filter(user=request.user, photo__in=visible).count()})
 
 @require_GET
 def health(request):

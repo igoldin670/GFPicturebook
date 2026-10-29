@@ -54,11 +54,11 @@ class PhotoTests(TestCase):
         self.assertIn('attachment', response['Content-Disposition'])
         self.assertEqual(b''.join(response.streaming_content), data)
         self.assertIn('no-store', response['Cache-Control'])
-    def test_missing_exif_falls_back_to_upload_calendar_date(self):
+    def test_missing_exif_remains_undated_in_every_timezone(self):
         with override_settings(TIME_ZONE='Pacific/Kiritimati'):
             photo = self.ready()
-            self.assertEqual(photo.display_date, timezone.localdate(photo.uploaded_at))
-            self.assertEqual(photo.date_source, 'upload')
+            self.assertIsNone(photo.display_date)
+            self.assertEqual(photo.date_source, 'missing')
             self.assertIsNone(photo.taken_at)
     def test_exif_original_date_and_orientation(self):
         exif = Image.Exif()

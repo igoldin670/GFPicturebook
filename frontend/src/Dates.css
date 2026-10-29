@@ -125,3 +125,38 @@
 }
 @media (prefers-reduced-motion: reduce) { .memory-book, .book-front-cover { transition: none; }.book-page .chapter-page, .book-page .keepsake-page, .book-navigation { transform: none; } }
 .collection-waiting { opacity: 0; transform: translateY(10px); }
+
+/* Navigation occupies its own layout, outside the 3D pages. */
+.book-scene { width: min(100%, 1136px); padding: 25px 88px 42px; }
+.memory-book { max-width: 960px; margin-inline: auto; }
+.book-scene .book-navigation { position: static; transform: none; opacity: 1; }
+.book-navigation button { position: absolute; top: 50%; transform: translateY(-50%); max-width: 68px; width: 68px; flex-direction: column; justify-content: center; padding: 8px 3px; min-height: 60px; text-align: center; }
+.book-navigation button:first-child { left: 0; }
+.book-navigation button:last-child { right: 0; text-align: center; flex-direction: column-reverse; }
+.book-navigation button > span { flex-shrink: 1 !important; max-width: 100%; overflow-wrap: anywhere; font-size: 10px; }
+.book-navigation .book-pagination { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); }
+.book-back-cover, .book-page-stack, .book-front-cover, .book-ground-shadow, .book-ribbon, .page-number, .page-handwriting { pointer-events: none; }
+.book-spread { transform: translateZ(1px); }
+.book-page { transform: translateZ(0); }
+.book-keepsakes { display: flex; align-items: center; justify-content: center; gap: 14px; height: auto; min-height: 60%; }
+.book-keepsake, .book-keepsake:nth-child(2) { position: relative; width: 47%; top: auto; left: auto; flex-shrink: 0; transform: rotate(-5deg); }
+.book-keepsake:nth-child(2) { transform: rotate(6deg); }
+.keepsake-page { padding: 8% 8% 12%; }
+.chapter-page { padding-bottom: 12%; }
+.book-keepsake .photo-card { position: relative; touch-action: manipulation; }
+.book-keepsake .photo-card:hover { transform: translateY(-3px); }
+@media(max-width:1100px) {
+  .book-scene { padding: 25px 10px 22px; }
+  .book-navigation { display: flex; position: relative; margin-top: 30px; gap: 12px; }
+  .book-navigation button, .book-navigation button:last-child { position: static; transform: none; flex-direction: row; width: auto; max-width: 44%; min-height: 48px; gap: 8px; padding: 8px; }
+  .book-navigation .book-pagination { position: static; transform: none; }
+  .book-navigation button > span { font-size: 11px; }
+}
+@media(max-width:520px) {
+  .book-scene { padding-inline: 6px; }
+  .book-keepsake { width: 82%; }
+  .book-keepsake:nth-child(2) { display: none; }
+  .keepsake-page { padding: 12% 10% 16%; }
+  .chapter-page { padding-bottom: 16%; }
+  .book-navigation button > span { font-size: 10px; }
+}

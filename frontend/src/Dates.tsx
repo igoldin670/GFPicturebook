@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, PhotoCard, PhotoDetail, type Page, type Photo } from './Gallery';
 import './Dates.css';
 import Icon from './Icon';
+import MediaFilter, {type FilterProps, type MediaKind} from './MediaFilter';
 import { createPortal } from 'react-dom';
 import { useSelection, SelectionControls, SelectableMemory, type Selection } from './Selection';
 
@@ -23,10 +24,11 @@ function KeepsakePage({spread, open, selection}: {spread: Spread | null; open: (
   return <div className="keepsake-page"><span className="page-handwriting">the days we’ll keep <Icon name="spark"/></span><div className="book-keepsakes">{spread?.photos.slice(0, 2).map(photo => <div className="book-keepsake" key={photo.id}><span className="book-photo-tape" aria-hidden="true"/><>{selection ? <SelectableMemory photo={photo} selection={selection} open={() => open(photo)}/> : <PhotoCard photo={photo} open={() => open(photo)}/>}</></div>)}{!spread?.photos.length && <div className="unwritten-memory"><span><Icon name="orbit"/></span><p>Room for all the<br/>days to come.</p></div>}</div><span className="page-number">{spread ? String(spread.number * 2).padStart(2, '0') : '01'}</span></div>;
 }
 
-export default function Dates({csrf, revision, changed}: {csrf: string; revision: number; changed: () => void}) {
+export default function Dates({csrf, revision, changed, kind, setKind}: {csrf: string; revision: number; changed: () => void} & FilterProps) {
+  const [loadedKind, setLoadedKind] = useState<MediaKind | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [spread, setSpread] = useState<Spread | null>(null);
-  const selection = useSelection(spread?.chapter.month ?? '');
+  const selection = useSelection(`${kind}:${spread?.chapter.month ?? ''}`);
   const [sidebar, setSidebar] = useState<HTMLElement | null>(null);
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 801px)').matches);
   const [phase, setPhase] = useState<'closed' | 'opening' | 'open'>('closed');
@@ -66,7 +68,7 @@ export default function Dates({csrf, revision, changed}: {csrf: string; revision
       request.current?.abort(); request.current = controller;
       setLoading(true);
       try {
-        const result = await api<{months: Chapter[]}>('/api/photos/months/', {signal: controller.signal});
+        const result = await api<{months: Chapter[]}>(`/api/photos/months/${kind ? `?kind=${kind}` : ''}`, {signal: controller.signal});
         let index = result.months.findIndex(chapter => chapter.month === current.current?.chapter.month);
         if (index < 0 && current.current && result.months.length) {
           const value = (month: string) => Number(month.slice(0,4)) * 12 + Number(month.slice(5));
@@ -74,8 +76,9 @@ export default function Dates({csrf, revision, changed}: {csrf: string; revision
           index = result.months.reduce((best, chapter, i) => Math.abs(value(chapter.month)-old) < Math.abs(value(result.months[best].month)-old) ? i : best, 0);
         }
         const chapter = result.months[index < 0 ? result.months.length - 1 : index];
-        const page = chapter ? await api<Page>(`/api/photos/?month=${chapter.month}`, {signal: controller.signal}) : null;
+        const page = chapter ? await api<Page>(`/api/photos/?month=${chapter.month}${kind ? `&kind=${kind}` : ''}`, {signal: controller.signal}) : null;
         if (controller.signal.aborted) return;
+        setLoadedKind(kind);
         setChapters(result.months);
         setSpread(chapter && page ? {...page, chapter, number: result.months.indexOf(chapter) + 1} : null);
         setError('');
@@ -84,7 +87,7 @@ export default function Dates({csrf, revision, changed}: {csrf: string; revision
     }
     void refresh();
     return () => {controller.abort(); window.clearTimeout(refreshTimer);};
-  }, [revision, reload]);
+  }, [revision, reload, kind]);
 
   async function travel(index: number) {
     if (locked.current || phase !== 'open' || loading || !spread || index < 0 || index >= chapters.length || chapters[index].month === spread.chapter.month) return;
@@ -96,7 +99,7 @@ export default function Dates({csrf, revision, changed}: {csrf: string; revision
     });
     const controller = new AbortController(); request.current?.abort(); request.current = controller;
     try {
-      const page = await api<Page>(`/api/photos/?month=${chapters[index].month}`, {signal: controller.signal});
+      const page = await api<Page>(`/api/photos/?month=${chapters[index].month}${kind ? `&kind=${kind}` : ''}`, {signal: controller.signal});
       if (controller.signal.aborted) return;
       const target = {...page, chapter: chapters[index], number: index + 1};
       if (reducedMotion()) {setSpread(target); locked.current = false; setBusy(false); restoreFocus();}
@@ -114,7 +117,7 @@ export default function Dates({csrf, revision, changed}: {csrf: string; revision
     locked.current = true; setBusy(true); setError('');
     const controller = new AbortController(); request.current?.abort(); request.current = controller;
     try {
-      const page = await api<Page>(`/api/photos/?month=${spread.chapter.month}&cursor=${encodeURIComponent(spread.next)}`, {signal: controller.signal});
+      const page = await api<Page>(`/api/photos/?month=${spread.chapter.month}${kind ? `&kind=${kind}` : ''}&cursor=${encodeURIComponent(spread.next)}`, {signal: controller.signal});
       if (!controller.signal.aborted) setSpread({...spread, next: page.next, photos: [...spread.photos, ...page.photos.filter(photo => !spread.photos.some(old => old.id === photo.id))]});
     } catch(e) {if (!controller.signal.aborted) setError((e as Error).message);}
     finally {if (!controller.signal.aborted) {locked.current = false; setBusy(false);}}
@@ -136,33 +139,35 @@ export default function Dates({csrf, revision, changed}: {csrf: string; revision
   });
   const years = [...new Set(chapters.map(chapter => chapter.month.slice(0,4)))].reverse();
 
-  const unavailable = busy || loading || phase !== 'open';
+  const unavailable = busy || loading || phase !== 'open' || loadedKind !== kind;
   return <section className="dates-section" aria-labelledby="dates-heading">
     <div className="dates-heading"><h1 id="dates-heading" tabIndex={-1}>Some days deserve<br/><em>a page of their own.</em></h1></div>
+    <MediaFilter kind={kind} setKind={setKind} disabled={unavailable || selection.editing || selection.saving}/>
     <div className={`book-scene book-${phase} ${turn ? 'book-turning' : ''}`} aria-busy={busy || loading}>
       <div className="book-ground-shadow" aria-hidden="true"/>
       <div className="memory-book">
         <div className="book-back-cover" aria-hidden="true"/>
         <div className="book-page-stack book-stack-left" aria-hidden="true"/>
         <div className="book-page-stack book-stack-right" aria-hidden="true"/>
-        <div className="book-spread" inert={phase !== 'open' || Boolean(turn)}>
+        <div className="book-spread" style={{visibility: loadedKind === kind ? undefined : 'hidden'}} inert={phase !== 'open' || Boolean(turn) || loading}>
           <div className="book-page book-page-left"><ChapterPage spread={spread}/></div>
           <div className="book-page book-page-right"><KeepsakePage spread={spread} open={setSelected} selection={selection}/></div>
           <div className="book-binding" aria-hidden="true"><span/><span/><span/></div>
-          <nav ref={navigation} className="book-navigation" aria-label="Memory chapters">
-            <button disabled={unavailable || !previous} onClick={() => void travel(index - 1)} aria-label={previous ? `Previous chapter: ${monthLabel(previous.month)}` : 'No earlier chapter'}><Icon name="chevronLeft"/><span>{previous ? monthName(previous.month) : 'First chapter'}<small>{previous?.month.split('-')[0] ?? 'The beginning'}</small></span></button>
-            <span className="book-pagination" aria-hidden="true">{spread ? `${spread.number} / ${chapters.length}` : '01'}</span>
-            <button disabled={unavailable || !next} onClick={() => void travel(index + 1)} aria-label={next ? `Next chapter: ${monthLabel(next.month)}` : 'No later chapter'}><span>{next ? monthName(next.month) : 'Latest chapter'}<small>{next?.month.split('-')[0] ?? 'To be continued'}</small></span><Icon name="chevronRight"/></button>
-          </nav>
+
         </div>
         {turn && <div className={`turning-leaf turn-${turn.direction}`} aria-hidden="true" inert><div className="leaf-face leaf-front">{turn.direction === 'next' ? <KeepsakePage spread={turn.from} open={() => {}}/> : <ChapterPage spread={turn.from}/>}</div><div className="leaf-face leaf-back">{turn.direction === 'next' ? <ChapterPage spread={turn.to}/> : <KeepsakePage spread={turn.to} open={() => {}}/>}</div></div>}
         <div className="book-front-cover" aria-hidden="true"><div className="cover-face cover-outside"><span className="cover-edition">OUR LITTLE ALBUM</span><div className="cover-title"><Flourish/><p>Our days,<br/><em>together.</em></p><span>A COLLECTION OF LITTLE MOMENTS</span></div><span className="cover-emblem"><Icon name="orbit"/></span><span className="cover-spine"/></div><div className="cover-face cover-inside"><span className="inside-inscription">Every day, a little more us.</span></div></div>
         <span className="book-ribbon" aria-hidden="true"/>
       </div>
+      <nav ref={navigation} className="book-navigation" aria-label="Memory chapters">
+            <button disabled={unavailable || !previous} onClick={() => void travel(index - 1)} aria-label={previous ? `Previous chapter: ${monthLabel(previous.month)}` : 'No earlier chapter'}><Icon name="chevronLeft"/><span>{previous ? monthName(previous.month) : 'First chapter'}<small>{previous?.month.split('-')[0] ?? 'The beginning'}</small></span></button>
+            <span className="book-pagination" aria-hidden="true">{spread ? `${spread.number} / ${chapters.length}` : '01'}</span>
+            <button disabled={unavailable || !next} onClick={() => void travel(index + 1)} aria-label={next ? `Next chapter: ${monthLabel(next.month)}` : 'No later chapter'}><span>{next ? monthName(next.month) : 'Latest chapter'}<small>{next?.month.split('-')[0] ?? 'To be continued'}</small></span><Icon name="chevronRight"/></button>
+      </nav>
     </div>
-    <p className="book-status" role="status" aria-live="polite">{loading ? 'Finding our chapters…' : busy ? 'Turning to another little piece of our story…' : phase !== 'open' ? 'Opening the memory book…' : spread ? `${monthLabel(spread.chapter.month)} · ${spread.chapter.count} ${spread.chapter.count === 1 ? 'memory' : 'memories'}` : 'Your first chapter is waiting to be written.'}</p>
+    <p className="book-status" role="status" aria-live="polite">{loading ? 'Finding our chapters…' : busy ? 'Turning to another little piece of our story…' : phase !== 'open' ? 'Opening the memory book…' : spread ? `${monthLabel(spread.chapter.month)} · ${spread.chapter.count} ${spread.chapter.count === 1 ? 'memory' : 'memories'}` : 'No dated memories match this view. Try another media type or visit Missing dates.'}</p>
     {error && <p className="error" role="alert">{error} <button className="quiet" onClick={() => setReload(value => value + 1)}>Try again</button></p>}
-    {spread && <div className={`chapter-collection ${turn ? 'collection-turning' : ''} ${phase !== 'open' ? 'collection-waiting' : ''}`} inert={phase !== 'open' || Boolean(turn)} aria-hidden={phase !== 'open' || undefined}><div className="chapter-collection-heading"><div><p className="eyebrow">BETWEEN THESE PAGES</p><h2>{monthLabel(spread.chapter.month)}</h2></div><SelectionControls selection={selection} photos={spread.photos} disabled={unavailable} csrf={csrf} saved={() => {setReload(value => value + 1);changed();}}/></div><div className="photo-grid" key={spread.chapter.month}>{spread.photos.map(photo => <SelectableMemory key={photo.id} photo={photo} selection={selection} open={() => setSelected(photo)}/>)}</div>{spread.photos.length === 0 && <p className="empty-library">No memories from this month yet.</p>}{spread.next && <button className="button load-more" disabled={unavailable} onClick={() => void more()}>More from this chapter <Icon name="arrow"/></button>}</div>}
+    {spread && loadedKind === kind && <div className={`chapter-collection ${turn ? 'collection-turning' : ''} ${phase !== 'open' ? 'collection-waiting' : ''}`} inert={phase !== 'open' || Boolean(turn) || loading} aria-hidden={phase !== 'open' || undefined}><div className="chapter-collection-heading"><div><p className="eyebrow">BETWEEN THESE PAGES</p><h2>{monthLabel(spread.chapter.month)}</h2></div><SelectionControls selection={selection} photos={spread.photos} disabled={unavailable} csrf={csrf} saved={() => {setReload(value => value + 1);changed();}}/></div><div className="photo-grid" key={spread.chapter.month}>{spread.photos.map(photo => <SelectableMemory key={photo.id} photo={photo} selection={selection} open={() => setSelected(photo)}/>)}</div>{spread.photos.length === 0 && <p className="empty-library">No memories from this month yet.</p>}{spread.next && <button className="button load-more" disabled={unavailable} onClick={() => void more()}>More from this chapter <Icon name="arrow"/></button>}</div>}
     {sidebar && createPortal(<details className="dates-subsection" open={wide}><summary>Browse dates</summary>{chapters.length ? <><label htmlFor="chapter-year">Year</label><select id="chapter-year" value={spread?.chapter.month.slice(0,4) ?? years[0]} disabled={unavailable} onChange={event => {const target = chapters.map((chapter,i) => ({chapter,i})).filter(item => item.chapter.month.startsWith(event.target.value + '-')).at(-1);if(target) void travel(target.i);}}>{years.map(year => <option key={year}>{year}</option>)}</select><div className="sidebar-months" role="group" aria-label="Months">{chapters.map((chapter,i) => chapter.month.slice(0,4) === spread?.chapter.month.slice(0,4) && <button key={chapter.month} className="quiet" aria-current={i === index ? 'date' : undefined} disabled={unavailable} onClick={() => void travel(i)}>{monthName(chapter.month)}<span>{chapter.count}</span></button>)}</div></> : <p>No dated memories yet.</p>}</details>, sidebar)}
     {selected && <PhotoDetail key={selected.id} photo={selected} csrf={csrf} close={() => setSelected(null)} saved={() => {setReload(value => value + 1); changed();}}/>}
   </section>;

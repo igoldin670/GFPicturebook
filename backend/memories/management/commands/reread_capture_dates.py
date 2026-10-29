@@ -11,7 +11,7 @@ from memories.services.videos import command
 
 
 class Command(BaseCommand):
-    help = 'Inspect explicit upload-fallback memory IDs. Add --apply to save recovered capture dates.'
+    help = 'Inspect explicit missing-date or legacy upload-fallback memory IDs. Add --apply to save recovered capture dates.'
 
     def add_arguments(self, parser):
         parser.add_argument('ids', nargs='+', type=uuid.UUID)
@@ -22,9 +22,9 @@ class Command(BaseCommand):
             raise CommandError('Inspect at most 500 explicit memory IDs per invocation.')
         failures = 0
         for identifier in dict.fromkeys(options['ids']):
-            photo = Photo.objects.filter(pk=identifier, status='ready', trashed_at__isnull=True, date_source='upload').first()
+            photo = Photo.objects.filter(pk=identifier, status='ready', trashed_at__isnull=True, date_source__in=['upload', 'missing']).first()
             if photo is None:
-                self.stdout.write(f'{identifier}: skipped (unavailable or not an upload fallback)')
+                self.stdout.write(f'{identifier}: skipped (unavailable or already has a capture/manual date)')
                 continue
             try:
                 with verified_source(photo, 'original') as source:
@@ -39,7 +39,7 @@ class Command(BaseCommand):
                     continue
                 if options['apply']:
                     with transaction.atomic():
-                        current = Photo.objects.select_for_update().filter(pk=identifier, status='ready', trashed_at__isnull=True, date_source='upload').first()
+                        current = Photo.objects.select_for_update().filter(pk=identifier, status='ready', trashed_at__isnull=True, date_source__in=['upload', 'missing']).first()
                         if current is None:
                             self.stdout.write(f'{identifier}: skipped (changed since inspection)')
                             continue

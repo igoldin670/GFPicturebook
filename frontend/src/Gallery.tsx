@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import MediaFilter, {type FilterProps} from './MediaFilter';
 import { useSelection, SelectionControls, SelectableMemory } from './Selection';
 
-export type Photo = {id: string; filename: string; date: string; dateSource: string; caption: string; width: number; height: number; camera: string; latitude: string | null; longitude: string | null; thumbnail: string; preview: string; original: string; kind: "photo" | "video"; duration: number | null; byteSize: number; playback: string | null};
+export type Photo = {id: string; filename: string; date: string | null; dateSource: string; caption: string; width: number; height: number; camera: string; latitude: string | null; longitude: string | null; thumbnail: string; preview: string; original: string; kind: "photo" | "video"; duration: number | null; byteSize: number; playback: string | null};
 type UploadLimits = {photoMaxBytes: number | null; videoMaxBytes: number; requestMaxBytes: number; batchMaxFiles: number};
-export type Page = {photos: Photo[]; next: string | null};
+export type Page = {photos: Photo[]; next: string | null; count: number};
 type Job = {id: string; filename: string; status: string; message: string};
 type Transfer = {id: string; file: File; progress: number; state: 'queued' | 'sending' | 'accepted' | 'error'; error?: string};
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
@@ -41,7 +42,7 @@ function uploadFile(item: Transfer, csrf: string, signal: AbortSignal, progress:
     else xhr.send(item.file);
   });
 }
-export const readableDate = (value: string) => {const [year, month, day] = value.split('-').map(Number);const date = new Date(0);date.setUTCFullYear(year, month - 1, day);date.setUTCHours(12,0,0,0);return new Intl.DateTimeFormat(undefined, {timeZone:'UTC',year:'numeric',month:'long',day:'numeric'}).format(date);};
+export const readableDate = (value: string | null) => {if (!value) return "Date needed";const [year, month, day] = value.split('-').map(Number);const date = new Date(0);date.setUTCFullYear(year, month - 1, day);date.setUTCHours(12,0,0,0);return new Intl.DateTimeFormat(undefined, {timeZone:'UTC',year:'numeric',month:'long',day:'numeric'}).format(date);};
 
 const durationLabel = (seconds: number | null) => {const total = Math.floor(seconds || 0); return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;};
 const fileSize = (bytes: number) => bytes >= 1024**3 ? `${(bytes / 1024**3).toFixed(1)} GiB` : `${(bytes / 1024**2).toFixed(1)} MiB`;
@@ -50,24 +51,28 @@ const videoFile = (file: File) => /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(file.nam
 export function PhotoDetail({photo, csrf, close, saved}: {photo: Photo; csrf: string; close: () => void; saved: () => void}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [caption, setCaption] = useState(photo.caption);
-  const [date, setDate] = useState(photo.date);
+  const [date, setDate] = useState(photo.date ?? '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {dialog.current?.showModal();}, []);
   async function save(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError('');
-    try {await api(`/api/photos/${photo.id}/edit/`, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({caption,date})}); saved(); close();}
+    try {await api(`/api/photos/${photo.id}/edit/`, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify({caption,date: date || null})}); saved(); close();}
     catch(e) {setError((e as Error).message);} finally {setBusy(false);}
   }
-  return <dialog ref={dialog} className="photo-dialog" onCancel={close} aria-labelledby="detail-heading"><button className="close-photo" onClick={close} aria-label="Close memory"><Icon name="close"/></button>{photo.kind === 'video' ? <div className="video-stage">{photo.playback ? <video className="detail-video" controls playsInline preload="metadata" poster={photo.thumbnail} src={photo.playback} aria-label={photo.caption || photo.filename}/> : <><img className="detail-image" src={photo.thumbnail} alt={photo.caption || photo.filename}/><p>Download the original to play this format.</p></>}</div> : <img className="detail-image" src={photo.preview} alt={photo.caption || photo.filename}/>}<div className="detail-content"><p className="eyebrow">A MOMENT TO KEEP</p><h2 id="detail-heading">{readableDate(photo.date)}</h2><form onSubmit={save}><label htmlFor="photo-date">Date taken</label><input id="photo-date" type="date" value={date} onChange={event => setDate(event.target.value)} required/><p className="field-note">Date source: {photo.dateSource === 'upload' ? 'Upload date (no usable capture date found)' : photo.dateSource === 'manual' ? 'Manually edited' : 'Embedded capture metadata'}</p><label htmlFor="photo-caption">A few words about this day</label><textarea id="photo-caption" value={caption} maxLength={5000} onChange={event => setCaption(event.target.value)} placeholder="What do you want to remember?"/><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save this memory'}</button></form>{error && <p role="alert" className="error">{error}</p>}<dl className="photo-facts"><dt>Resolution</dt><dd>{photo.width} × {photo.height}</dd><dt>File size</dt><dd>{fileSize(photo.byteSize)}</dd>{photo.kind === "video" && <><dt>Duration</dt><dd>{durationLabel(photo.duration)}</dd></>}{photo.camera && <><dt>Camera</dt><dd>{photo.camera}</dd></>}{photo.latitude !== null && photo.longitude !== null && <><dt>GPS coordinates</dt><dd>{photo.latitude}, {photo.longitude}</dd></>}</dl><a className="original-link" href={photo.original}>Download unchanged original <Icon name="external"/></a><p className="field-note">Originals may include location metadata.</p></div></dialog>;
+  return <dialog ref={dialog} className="photo-dialog" onCancel={close} aria-labelledby="detail-heading"><button className="close-photo" onClick={close} aria-label="Close memory"><Icon name="close"/></button>{photo.kind === 'video' ? <div className="video-stage">{photo.playback ? <video className="detail-video" controls playsInline preload="metadata" poster={photo.thumbnail} src={photo.playback} aria-label={photo.caption || photo.filename}/> : <><img className="detail-image" src={photo.thumbnail} alt={photo.caption || photo.filename}/><p>Download the original to play this format.</p></>}</div> : <img className="detail-image" src={photo.preview} alt={photo.caption || photo.filename}/>}<div className="detail-content"><p className="eyebrow">A MOMENT TO KEEP</p><h2 id="detail-heading">{readableDate(photo.date)}</h2><form onSubmit={save}><label htmlFor="photo-date">Date taken</label><input id="photo-date" type="date" value={date} onChange={event => setDate(event.target.value)} required={photo.date !== null}/><p className="field-note">Date source: {photo.dateSource === 'missing' ? 'No reliable capture date found. You can assign one here.' : photo.dateSource === 'upload' ? 'Legacy upload date' : photo.dateSource === 'manual' ? 'Manually edited' : 'Embedded capture metadata'}</p><label htmlFor="photo-caption">A few words about this day</label><textarea id="photo-caption" value={caption} maxLength={5000} onChange={event => setCaption(event.target.value)} placeholder="What do you want to remember?"/><button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save this memory'}</button></form>{error && <p role="alert" className="error">{error}</p>}<dl className="photo-facts"><dt>Resolution</dt><dd>{photo.width} × {photo.height}</dd><dt>File size</dt><dd>{fileSize(photo.byteSize)}</dd>{photo.kind === "video" && <><dt>Duration</dt><dd>{durationLabel(photo.duration)}</dd></>}{photo.camera && <><dt>Camera</dt><dd>{photo.camera}</dd></>}{photo.latitude !== null && photo.longitude !== null && <><dt>GPS coordinates</dt><dd>{photo.latitude}, {photo.longitude}</dd></>}</dl><a className="original-link" href={photo.original}>Download unchanged original <Icon name="external"/></a><p className="field-note">Originals may include location metadata.</p></div></dialog>;
 }
 
 export function PhotoCard({photo, open, selection}: {photo: Photo; open: () => void; selection?: boolean}) {
   return <button className={`photo-card ${photo.kind === 'video' ? 'video-polaroid' : ''}`} onClick={open} aria-pressed={selection} aria-label={`${selection === undefined ? (photo.kind === 'video' ? 'Play video' : 'Open photo') : (photo.kind === 'video' ? 'Select video' : 'Select photo')}: ${photo.caption || photo.filename}`}><div className="polaroid-image"><img loading="lazy" decoding="async" src={photo.thumbnail} alt={photo.caption || photo.filename}/>{photo.kind === 'video' && <><span className="polaroid-play" aria-hidden="true"><Icon name="play"/></span><span className="polaroid-duration">{durationLabel(photo.duration)}</span><span className="polaroid-film" aria-hidden="true"><Icon name="film"/></span></>}</div><span>{readableDate(photo.date)}</span></button>;
 }
 
-export default function Gallery({csrf, changed, revision = 0, active = true}: {csrf: string; changed: () => void; revision?: number; active?: boolean}) {
-  const selection = useSelection('memories', active);
+export default function Gallery({csrf, changed, revision = 0, active = true, undated = false, kind, setKind}: {csrf: string; changed: () => void; revision?: number; active?: boolean; undated?: boolean} & FilterProps) {
+  const scope = `${undated}:${kind}`;
+  const selection = useSelection(scope, active);
+  const [count, setCount] = useState(0);
+  const galleryRequest = useRef<AbortController | null>(null);
+  const generation = useRef(0);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [limits, setLimits] = useState<UploadLimits | null>(null);
   const [next, setNext] = useState<string | null>(null);
@@ -85,28 +90,42 @@ export default function Gallery({csrf, changed, revision = 0, active = true}: {c
   const busyRef = useRef(false);
   const pendingRef = useRef(false);
   const pendingSignature = useRef('');
+  const editingRef = useRef(false);
+  editingRef.current = selection.editing;
   const changedRef = useRef(changed);
   changedRef.current = changed;
   useEffect(() => {mounted.current = true; return () => {mounted.current = false; controller.current?.abort();};}, []);
   useEffect(() => {void api<UploadLimits>('/api/photos/limits/').then(value => {if (mounted.current) setLimits(value);}).catch(e => {if (mounted.current) setError((e as Error).message);});}, []);
+  const query = `${undated ? 'undated=1&' : ''}${kind ? `kind=${kind}` : ''}`;
+  const queryRef = useRef(query);
+  queryRef.current = query;
   const load = useCallback(async (cursor?: string) => {
-    if (loadingRef.current) return;
+    if (cursor && loadingRef.current) return;
+    galleryRequest.current?.abort();
+    const abort = new AbortController(); galleryRequest.current = abort;
+    const version = generation.current;
     loadingRef.current = true; setLoading(true);
     try {
-      const page = await api<Page>(`/api/photos/${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
-      if (!mounted.current) return;
+      const page = await api<Page>(`/api/photos/?${queryRef.current}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, {signal: abort.signal});
+      if (!mounted.current || abort.signal.aborted || version !== generation.current) return;
       setPhotos(previous => cursor ? [...previous, ...page.photos.filter(p => !previous.some(old => old.id === p.id))] : page.photos);
-      setNext(page.next); setError('');
-    } catch(e) {if (mounted.current) setError((e as Error).message);}
-    finally {loadingRef.current = false; if (mounted.current) setLoading(false);}
+      setNext(page.next); setCount(page.count); setError('');
+    } catch(e) {if (mounted.current && !abort.signal.aborted) setError((e as Error).message);}
+    finally {if (!abort.signal.aborted) {loadingRef.current = false; if (mounted.current) setLoading(false);}}
   }, []);
-  useEffect(() => {void load();}, [revision, load]);
+  useEffect(() => {
+    generation.current += 1; galleryRequest.current?.abort();
+    setPhotos([]); setNext(null); setCount(0); setSelected(null);
+    void load();
+    return () => galleryRequest.current?.abort();
+  }, [scope, load]);
+  useEffect(() => {if (!selection.editing) void load();}, [revision, load, selection.editing]);
   const poll = useCallback(async () => {
     try {
       const result = await api<{uploads: Job[]}>('/api/photos/uploads/');
       if (!mounted.current) return;
       const signature = result.uploads.filter(j => j.status === 'pending' || j.status === 'processing').map(j => j.id).sort().join(',');
-      if (pendingRef.current || pendingSignature.current !== signature || Boolean(signature)) {void load(); changedRef.current();}
+      if (pendingRef.current || pendingSignature.current !== signature || Boolean(signature)) {if (!editingRef.current) void load(); changedRef.current();}
       pendingRef.current = false;
       pendingSignature.current = signature;
       setJobs(result.uploads);
@@ -139,13 +158,13 @@ export default function Gallery({csrf, changed, revision = 0, active = true}: {c
     const items: Transfer[] = Array.from(files).map(file => ({id:crypto.randomUUID(),file,progress:0,state:'queued'}));
     setTransfers(items); void send(items);
   }
-  return <section className="library"><div className="library-heading"><div><h2>Memories</h2></div><SelectionControls selection={selection} photos={photos} csrf={csrf} saved={() => {void load();changedRef.current();}}/></div><input className="file-picker" ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/quicktime,video/webm,.mp4,.mov,.mkv,.webm,.avi,.m4v" multiple onChange={event => {choose(event.target.files); event.target.value='';}} aria-label="Choose photos or videos"/>
+  return <section className="library"><div className="library-heading"><div><h2 id={undated ? "missing-heading" : "library-heading"} tabIndex={-1}>{undated ? "Missing dates" : "Memories"}{undated && <span className="missing-count" role="status" aria-label={`${count} matching memories need dates`}>{count}</span>}</h2></div><SelectionControls selection={selection} photos={photos} csrf={csrf} saved={() => {void load();changedRef.current();}}/></div><MediaFilter kind={kind} setKind={setKind} disabled={selection.editing || selection.saving}/><input className="file-picker" ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/quicktime,video/webm,.mp4,.mov,.mkv,.webm,.avi,.m4v" multiple onChange={event => {choose(event.target.files); event.target.value='';}} aria-label="Choose photos or videos"/>
     <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => {event.preventDefault();setDragging(true);}} onDragLeave={() => setDragging(false)} onDrop={event => {event.preventDefault();setDragging(false);choose(event.dataTransfer.files);}}><div className="upload-polaroids" aria-hidden="true"><span/><span/><Icon name="orbit"/></div><button className="button add-memories" disabled={uploading} onClick={() => picker.current?.click()}><Icon name="plus"/> Add memories</button><p className="upload-instruction">or drop your photos and videos here</p><details className="upload-formats"><summary>Formats and limits</summary><small>{limits ? limits.photoMaxBytes !== null ? `Photos up to ${fileSize(limits.photoMaxBytes)} · videos up to ${fileSize(limits.videoMaxBytes)}` : `Photos and videos up to ${fileSize(limits.requestMaxBytes)}` : 'Photos & videos'} · MP4, MOV, MKV, WebM, AVI & M4V · originals kept unchanged</small></details></div>
     {transfers.length > 0 && <details className="upload-progress" open={uploading || transfers.some(item => item.state === 'error')}><summary>Uploads · {transfers.filter(t => t.state === 'accepted').length} of {transfers.length} received</summary><ul>{transfers.map(item => <li key={item.id}><span>{item.file.name}</span><span>{item.state === 'sending' ? `${item.progress}%` : item.state === 'accepted' ? 'Received, processing separately' : item.state === 'error' ? item.error : 'Queued'}</span>{item.state === 'sending' && <progress max={100} value={item.progress} aria-label={`Uploading ${item.file.name}`}/>}</li>)}</ul>{transfers.some(item => item.state === 'error') && <button className="quiet" disabled={uploading} onClick={() => void send(transfers.filter(t => t.state === 'error'))}>Retry unsuccessful uploads</button>}{!uploading && <button className="quiet" onClick={() => setTransfers([])}>Dismiss upload progress</button>}</details>}
     {jobs.length > 0 && <details className="processing-status" open={jobs.some(j => j.status !== 'failed')}><summary>{jobs.filter(j => j.status !== 'failed').length} processing · {jobs.filter(j => j.status === 'failed').length} unable to process</summary><ul>{jobs.map(job => <li key={job.id}><strong>{job.filename}</strong><span>{job.message}</span></li>)}</ul></details>}
     {error && <p className="error" role="alert">{error} <button className="quiet" onClick={() => void load()}>Refresh</button></p>}
-    <div className="photo-grid">{photos.map((photo,index) => <div className="memory-cell" key={photo.id}>{(index === 0 || photo.date !== photos[index-1].date) && <p className="date-divider">{readableDate(photo.date)}</p>}<SelectableMemory photo={photo} selection={selection} open={() => setSelected(photo)}/></div>)}</div>
-    {loading && <p role="status">Gathering our moments…</p>}{!loading && photos.length === 0 && <p className="empty-library">The first page is waiting for you. Add a photo or video to begin.</p>}{next && <button className="button load-more" disabled={loading} onClick={() => void load(next)}>More memories <Icon name="arrow"/></button>}
+    <div className="photo-grid">{photos.map((photo,index) => <div className="memory-cell" key={photo.id}>{!undated && (index === 0 || photo.date !== photos[index-1].date) && <p className="date-divider">{readableDate(photo.date)}</p>}<SelectableMemory photo={photo} selection={selection} open={() => setSelected(photo)}/></div>)}</div>
+    {loading && <p role="status">Gathering our moments…</p>}{!loading && photos.length === 0 && <p className="empty-library">{undated ? 'No matching memories need dates. Every little moment has its place.' : 'No dated memories match this view. Upload memories or assign dates in Missing dates.'}</p>}{next && <button className="button load-more" disabled={loading} onClick={() => void load(next)}>More memories <Icon name="arrow"/></button>}
     {selected && <PhotoDetail key={selected.id} photo={selected} csrf={csrf} close={() => setSelected(null)} saved={() => {void load();changedRef.current();}}/>}
   </section>;
 }

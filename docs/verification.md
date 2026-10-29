@@ -1,3 +1,13 @@
+# Living scrapbook update: 2026-10-29
+
+- All **108 backend tests passed on disposable PostgreSQL 17**, with no skips. New coverage includes nullable dates, clearing only legacy upload fallbacks during migration, shared-media authorization, filter counts and month indexes, dated/undated pagination and cursor isolation, caption-only edits, preserved capture sources, atomic mixed-media assignments, and dry-run/explicit recovery for missing dates. Existing original integrity, replication, offline/full/corrupted drive simulations, video formats/seeking, CSRF, and concurrency tests passed.
+- TypeScript/Vite production build, uv-based production Docker image build (including static collection), migration drift check, and Git whitespace checks passed. No dependency versions were changed.
+- Chromium exercised actual synthetic photo/video uploads through the production-built UI, processing, unchanged-original SHA-256 download, playback/seeking, an upload batch continuing after section navigation, Missing dates counters, failed bulk assignment/retry, movement into chapters, pagination selection, and rapid filters with a deliberately delayed stale response.
+- Book image/caption/white-frame interaction, synchronized phone book/grid selection, filtered chapters/sidebar years, keyboard navigation, and navigation/book bounds were checked at 320, 390, 768, 1024, 1440, and 1920px. The sign-in cascade was checked for once-per-login behavior, cleanup, reduced motion, and phone cleanup under 4× CPU throttling. No browser page errors were observed.
+- Browser accounts and media were synthetic and cleaned up. No real drive operations or user-server deployment were performed. Migration `0004` changes historical upload-fallback dates, so [back up the database before upgrading](living-scrapbook.md#upgrade-and-rollback).
+
+Scope: Chromium on Linux with emulated screen sizes, not physical mobile devices, Safari/iOS, or a full assistive-technology audit. CPU-throttled functional checks do not establish a guaranteed frame rate. Android-specific metadata diagnosis still requires affected original camera files, as documented in the v1.1 notes below.
+
 # Version 1.1: 2026-10-29
 
 - Verified the latest feature baseline at `0bf530d` before implementing; the starting workspace had been an older main snapshot.
