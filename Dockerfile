@@ -8,12 +8,13 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.12-slim-bookworm
+COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /usr/local/bin/uv
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.lock ./
 RUN --mount=type=secret,id=proxy_ca \
-    if [ -f /run/secrets/proxy_ca ]; then export PIP_CERT=/run/secrets/proxy_ca; fi; pip install --no-cache-dir -r requirements.lock
+    if [ -f /run/secrets/proxy_ca ]; then export SSL_CERT_FILE=/run/secrets/proxy_ca; fi; uv pip install --system --no-cache --no-deps -r requirements.lock
 COPY backend/ ./
 COPY scripts/prepare-storage.py ./prepare-storage.py
 COPY --from=frontend /build/dist ./web

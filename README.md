@@ -52,11 +52,11 @@ Tests create and remove a separate test database. Use development data for this 
 
 ## Develop without Docker
 
-Python 3.12+ and Node 24 LTS are recommended. SQLite is an explicit local development convenience; PostgreSQL is the deployment database.
+Python 3.12+ and Node 24 LTS are recommended. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) first (the Docker build pins uv 0.12.19). SQLite is an explicit local development convenience; PostgreSQL is the deployment database.
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -r backend/requirements.lock
+uv venv --python python3 .venv
+uv pip sync --python .venv/bin/python backend/requirements.lock
 npm ci --prefix frontend
 # Generate once; skip if .env already exists.
 python3 scripts/init-env.py --local
@@ -134,7 +134,7 @@ See [verification results and limits](docs/verification.md) for checks actually 
 
 ## Maintenance
 
-Track this source in Git; keep `.env`, photo storage, databases, and backups outside Git. Review dependencies monthly and promptly apply security releases. Regenerate `requirements.lock` in a clean virtual environment after updating direct constraints; run the tests and image build before upgrading the server. Pin deployed image digests after testing a release. Read the backup plan before the first real import.
+Track this source in Git; keep `.env`, photo storage, databases, and backups outside Git. Review dependencies monthly and promptly apply security releases. After updating direct constraints, regenerate the lock with `uv pip compile --python-version 3.12 backend/requirements.txt -o backend/requirements.lock`, then synchronize the development environment with `uv pip sync --python .venv/bin/python backend/requirements.lock`. Use `--upgrade` with the compile command when intentionally refreshing all resolved versions. Run the tests and image build before upgrading the server. Pin deployed image digests after testing a release. Read the backup plan before the first real import.
 
 
 For larger camera photos, videos and multi-user batches, see [configurable upload limits and worker bounds](docs/media-archive.md#larger-files-and-upload-batches). Photo/video byte caps can be disabled independently; the default shared ceiling is 100 GiB.
