@@ -182,7 +182,7 @@ class CaptureMetadataTests(TestCase):
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 from unittest import skipUnless
-from django.db import connection, close_old_connections
+from django.db import connection, close_old_connections, connections
 from django.test import TransactionTestCase
 
 
@@ -201,7 +201,7 @@ class BulkDateConcurrencyTests(TransactionTestCase):
             try:
                 client,calendar=item;barrier.wait(timeout=10)
                 return client.post('/api/photos/bulk-date/',{'ids':[str(p.pk) for p in photos],'date':calendar},content_type='application/json').status_code
-            finally:close_old_connections()
+            finally:connections.close_all()
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(list(pool.map(send,zip(clients,['2024-02-29','2025-01-01']))),[200,200])
         dates=set(Photo.objects.filter(pk__in=[p.pk for p in photos]).values_list('display_date',flat=True))

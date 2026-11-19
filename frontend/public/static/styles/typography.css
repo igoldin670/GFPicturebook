@@ -7,3 +7,8 @@
   src: url('../fonts/inter-latin-variable.woff2') format('woff2');
 }
 :root { --font-ui: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+
+/* Bodoni Moda Variable, Fontsource 5.3.0. SIL OFL: ../fonts/Bodoni-Moda-OFL.txt. */
+@font-face { font-family: 'Bodoni Moda'; font-style: normal; font-weight: 400 900; font-display: swap; src: url('../fonts/bodoni-moda-latin-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Bodoni Moda'; font-style: italic; font-weight: 400 900; font-display: swap; src: url('../fonts/bodoni-moda-latin-italic.woff2') format('woff2'); }
+:root { --font-display: 'Bodoni Moda', Georgia, 'Times New Roman', serif; }

@@ -4,6 +4,7 @@ import './style.css';
 import Gallery from './Gallery';
 import Dates from './Dates';
 import Icon from './Icon';
+import { AlbumNavigation, Brand, JournalCover, PageTitle } from './Layout';
 import {type MediaKind} from './MediaFilter';
 type User = {username: string; isAdmin: boolean};
 type Session = {user: User | null; csrfToken: string};
@@ -13,9 +14,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const body = await response.json().catch(() => ({error: 'The request could not be completed. Refresh and try again.'}));
   if (!response.ok) throw new Error(body.error || 'The request could not be completed.');
   return body;
-}
-function Keepsake() {
-  return <div className="keepsake" aria-hidden="true"><span className="tape"/><div className="drawing"><svg viewBox="0 0 340 300"><circle cx="250" cy="67" r="30" fill="#e9b894"/><path d="M0 190 Q90 95 180 190 T340 185 V300 H0Z" fill="#b9c5b3"/><path d="M0 240 Q120 140 230 227 T340 220 V300 H0Z" fill="#859a83"/><path d="M137 300 Q220 240 182 201" stroke="#e8dec7" strokeWidth="24" fill="none"/><path d="M57 59l6 17 17 6-17 6-6 17-6-17-17-6 17-6Z" fill="#b97b70"/></svg></div><span>somewhere, together.</span></div>;
 }
 function SignInCascade() {
   const [items] = useState(() => {const count = window.matchMedia('(max-width: 800px)').matches ? 28 : 48;return Array.from({length: count}, (_, i) => {
@@ -81,21 +79,20 @@ function App() {
       setSession(await request<Session>('session'));
     } catch(e) {setError((e as Error).message);} finally {setBusy(false);}
   }
-  return <div className="app">{flutter && <SignInCascade/>}<header><a className="brand" href="/" aria-label="Our little album home"><span className="brand-icon"><Icon name="orbit"/></span> our little album<span className="brand-dot">.</span></a>{session?.user && <button className="quiet" onClick={signOut} disabled={busy}><Icon name="logout"/>Sign out</button>}</header>
-    <main>
+  return <div className="app">{flutter && <SignInCascade/>}<a className="skip-link" href="#main-content">Skip to memories</a><header><Brand/>{session?.user && <button className="quiet" onClick={signOut} disabled={busy}><Icon name="logout"/>Sign out</button>}</header>
+    <main id="main-content" tabIndex={-1}>
       {!loaded ? <p role="status">Opening our little album…</p> : session?.user ? <div className="album-layout">
-        <nav className="album-navigation" aria-label="Album sections"><div className="album-navigation-inner"><a href="#memories" aria-current={section === 'memories' ? 'page' : undefined} onClick={event => navigateTo(event, 'memories')}><Icon name="photo"/>Memories</a><a className="missing-dates-link" href="#missing-dates" aria-current={section === 'missing-dates' ? 'page' : undefined} onClick={event => navigateTo(event, 'missing-dates')}>Missing dates <span className="nav-count">{counts?.undatedCount ?? 0}</span></a><a href="#dates" aria-current={section === 'dates' ? 'page' : undefined} onClick={event => navigateTo(event, 'dates')}><Icon name="book"/>Dates</a><div id="dates-sidebar" className="dates-sidebar-host"/></div></nav>
+        <AlbumNavigation section={section} undatedCount={counts?.undatedCount ?? 0} navigate={navigateTo}/>
         <div className="album-content">
         <div className="section-view" hidden={section === 'dates'} inert={section === 'dates'}>
-        <div className="welcome" hidden={section === 'missing-dates'}><h1 id="memories-heading" tabIndex={-1}>The little things.<br/><em>The everything things.</em></h1></div>
-        <div className="stats" hidden={section === 'missing-dates'}><div><strong>{counts?.photos ?? '…'}</strong><span>moments kept</span></div><div><strong>{counts?.albums ?? '…'}</strong><span>albums created</span></div><div><strong>{counts?.favorites ?? '…'}</strong><span>your favorites</span></div></div>
+        <div className="welcome" hidden={section === 'missing-dates'}><PageTitle id="memories-heading">The little things.<br/><em>The everything things.</em></PageTitle></div>
         <Gallery kind={kind} setKind={setKind} undated={section === 'missing-dates'} active={section !== 'dates'} csrf={session.csrfToken} revision={galleryRevision} changed={() => {refreshCounts(); setRevision(value => value + 1);}}/>
         </div>
         {section === 'dates' && <div className="section-view"><Dates kind={kind} setKind={setKind} csrf={session.csrfToken} revision={revision} changed={() => {refreshCounts(); setGalleryRevision(value => value + 1);}}/></div>}
         {session.user.isAdmin && <p><a className="original-link" href="/admin/">Manage our space <Icon name="external"/></a></p>}
 
-        </div></div> : <section className="login-layout"><div className="login-copy"><h1>For the moments<br/><em>that become us.</em></h1><p className="intro">The big adventures. The ordinary Sundays.<br/>A little home for everything in between.</p><Keepsake/></div><div className="login-card"><span className="login-emblem"><Icon name="orbit"/></span><h2>Welcome home.</h2><form onSubmit={signIn}><label htmlFor="username">Username</label><input id="username" name="username" autoComplete="username" maxLength={150} required disabled={busy}/><label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete="current-password" maxLength={1024} required disabled={busy}/><button className="button" disabled={busy || !session}>{busy ? 'Opening the album…' : 'Step inside'}<Icon name="arrow"/></button></form><p className="login-help">Invite-only, always.<br/>Accounts are created by your administrator.</p></div></section>}
-      {error && <div className="error" role="alert">{error}</div>}
-    </main><footer><span>Our little album</span></footer></div>;
+        </div></div> : <section className="login-layout"><JournalCover/><div className="login-card"><h2>Welcome home.</h2>{error && <p className="error" role="alert">{error}</p>}<form onSubmit={signIn}><label htmlFor="username">Username</label><input id="username" name="username" autoComplete="username" maxLength={150} required disabled={busy}/><label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete="current-password" maxLength={1024} required disabled={busy}/><button className="button" disabled={busy || !session}>{busy ? 'Opening the album…' : 'Step inside'}<Icon name="arrow"/></button></form><p className="login-help">A private place for our digital world.</p></div></section>}
+      {error && session?.user && <div className="error" role="alert">{error}</div>}
+    </main><footer><span>Our little album</span><span>Made for the memories.</span></footer></div>;
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);

@@ -1,6 +1,8 @@
 # Our little album
 
-A private, self-hosted picture book for two. Warm ivory, sage, locally hosted Inter, and a focus on your photographs.
+A private, self-hosted picture book for two. Ink-blue bookcloth, warm paper, locally hosted Bodoni Moda and Inter, and a focus on your photographs.
+
+**Version 1.2:** a handbound photo-journal frontend with a clothbound sign-in screen, compact upload controls, tactile Polaroids, and a matching Dates book. All existing media and storage workflows remain. [Release notes, verification and server update](docs/version-1.2.md).
 
 **Media archive update:** video polaroids, authenticated seeking/playback, FFmpeg thumbnails/compatible previews, verified redundant-drive storage, repair/integrity workers and an admin-only storage dashboard are implemented. [Configure the archive safely](docs/media-archive.md); redundancy requires existing mounted filesystems and is not active until configured.
 

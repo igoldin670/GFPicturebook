@@ -9,3 +9,5 @@ backend/local.sqlite3
 **/__pycache__
 backend/staticfiles
 **/*.tsbuildinfo
+frontend/playwright-report
+frontend/test-results

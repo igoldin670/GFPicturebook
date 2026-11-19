@@ -12,3 +12,5 @@ backups/
 *.tsbuildinfo
 config/drives.json
 compose.archive.yaml
+frontend/playwright-report/
+frontend/test-results/

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-19T23:53:27.927789+00:00",
+  "title": "Design System: Our little album",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "polaroid",
+        "value": "0 3px 5px #122b3a08, 0 12px 24px #122b3a12",
+        "purpose": "Soft elevation beneath actual photo paper."
+      }
+    ],
+    "motion": [
+      {
+        "name": "cover-open",
+        "value": "1.75s cubic-bezier(.28,.67,.23,1)",
+        "purpose": "Physical album cover opening."
+      },
+      {
+        "name": "page-turn",
+        "value": "1.1s cubic-bezier(.35,.15,.25,1)",
+        "purpose": "Settled chapter transition; disabled for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "560px"
+      },
+      {
+        "name": "horizontal-navigation",
+        "value": "800px"
+      },
+      {
+        "name": "book-gutters",
+        "value": "1100px"
+      },
+      {
+        "name": "wide-gallery",
+        "value": "1600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "A quiet ink-blue action with a readable paper label.",
+      "html": "<button class=\"journal-action\">Add memories</button>",
+      "css": ".journal-action { background:#203b50;color:#fffdf8;border:1px solid transparent;border-radius:6px;min-height:44px;padding:11px 16px;font:550 12px Inter,system-ui,sans-serif; }.journal-action:hover{background:#34566e;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Handbound photo journal",
+    "overview": "Personal photographs lead. Ink-blue cloth, elegant book lettering and warm paper connect browsing to the physical Dates book.",
+    "keyCharacteristics": [
+      "Compact centered title",
+      "Tactile Polaroids",
+      "A physical opening/page-turn book",
+      "Practical quiet controls"
+    ],
+    "rules": [
+      {
+        "name": "Let memories lead",
+        "body": "Show complete Polaroids in the first desktop viewport; controls support the collection.",
+        "section": "layout"
+      }
+    ],
+    "dos": [
+      "Keep originals and manual decisions intact.",
+      "Make decorations non-interactive.",
+      "Keep accessible reduced-motion states."
+    ],
+    "donts": [
+      "Do not add dashboard placeholder statistics.",
+      "Do not expose storage identifiers to members."
+    ]
+  }
+}

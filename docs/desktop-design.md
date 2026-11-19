@@ -1,4 +1,6 @@
-# Desktop design refinement
+# Desktop design refinement (v1.1)
+
+For the current ink-blue journal system, see [v1.2](version-1.2.md) and [DESIGN.md](../DESIGN.md). The notes below document the previous sage design.
 
 The interface keeps its cream, sage, and terracotta palette and its polaroids and memory book. The desktop layout now has a wider navigation rail, a centered serif-and-italic main title, compact collection counters, a compact upload area, and an adaptive gallery inside a 1560 px maximum-width shell. Large desktops can show five polaroids per row; phones retain two. Completed upload details collapse automatically, while ongoing transfers, processing jobs, failed transfers, and retry controls remain available.
 

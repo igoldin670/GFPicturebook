@@ -1,70 +1,70 @@
 /* Shared typography and warm surfaces, with Django's native controls intact. */
 :root, html[data-theme="light"] {
   --font-family-primary: var(--font-ui);
-  --primary: #617454;
-  --secondary: #536848;
-  --accent: #f1ebdb;
-  --primary-fg: #fffdf7;
-  --body-fg: #343c34;
-  --body-bg: #f7f3eb;
-  --body-quiet-color: #67715f;
-  --body-loud-color: #343c34;
-  --header-color: #343c34;
-  --header-branding-color: #343c34;
-  --header-bg: #f7f3eb;
-  --header-link-color: #536848;
-  --breadcrumbs-fg: #6f7a64;
-  --breadcrumbs-link-fg: #536848;
-  --breadcrumbs-bg: #eeeFe5;
-  --link-fg: #536848;
-  --link-hover-color: #3e5633;
-  --link-selected-fg: #42583b;
-  --hairline-color: #e5e6da;
-  --border-color: #dedfd2;
-  --darkened-bg: #eff0e7;
-  --selected-bg: #e7ecdf;
-  --selected-row: #edf1e6;
-  --button-fg: #fffdf7;
-  --button-bg: #617454;
-  --button-hover-bg: #506644;
-  --default-button-bg: #506644;
-  --default-button-hover-bg: #435b37;
-  --close-button-bg: #737d69;
-  --close-button-hover-bg: #5f6d55;
-  --album-panel: #fffdf7;
-  --album-soft: #e7ecdf;
+  --primary: #203b50;
+  --secondary: #294b62;
+  --accent: #e3d3b8;
+  --primary-fg: #fffdf8;
+  --body-fg: #23323b;
+  --body-bg: #f4efe5;
+  --body-quiet-color: #596770;
+  --body-loud-color: #23323b;
+  --header-color: #23323b;
+  --header-branding-color: #23323b;
+  --header-bg: #f4efe5;
+  --header-link-color: #294b62;
+  --breadcrumbs-fg: #596770;
+  --breadcrumbs-link-fg: #294b62;
+  --breadcrumbs-bg: #e9e7de;
+  --link-fg: #294b62;
+  --link-hover-color: #142e42;
+  --link-selected-fg: #294b62;
+  --hairline-color: #e2ded4;
+  --border-color: #d6d3c9;
+  --darkened-bg: #ebe8df;
+  --selected-bg: #e3e9eb;
+  --selected-row: #e9eef0;
+  --button-fg: #fffdf8;
+  --button-bg: #203b50;
+  --button-hover-bg: #34566e;
+  --default-button-bg: #34566e;
+  --default-button-hover-bg: #142e42;
+  --close-button-bg: #536c7a;
+  --close-button-hover-bg: #344f60;
+  --album-panel: #fffdf8;
+  --album-soft: #e3e9eb;
 }
 html[data-theme="dark"] {
   --font-family-primary: var(--font-ui);
-  --primary: #849575; --secondary: #647956; --accent: #d9cba8;
-  --body-bg: #20271f; --body-fg: #e4e8de; --body-loud-color: #f4f3eb; --body-quiet-color: #b5bfa9;
-  --header-bg: #20271f; --header-color: #e4e8de; --header-branding-color: #e4e8de; --header-link-color: #c3d1b5;
-  --breadcrumbs-bg: #293328; --breadcrumbs-fg: #b5bfa9; --breadcrumbs-link-fg: #c3d1b5;
-  --hairline-color: #354132; --border-color: #41503b; --darkened-bg: #293328; --selected-bg: #3c4a36; --selected-row: #34402f;
-  --link-fg: #bbcca8; --link-hover-color: #d7e0cd; --link-selected-fg: #d7e0cd;
-  --button-bg: #647956; --button-hover-bg: #748d62; --default-button-bg: #647956; --default-button-hover-bg: #748d62;
-  --album-panel: #293328; --album-soft: #34402f;
+  --primary: #91b3c4; --secondary: #34566e; --accent: #e3d3b8;
+  --body-bg: #172b3a; --body-fg: #e6eef0; --body-loud-color: #fffdf8; --body-quiet-color: #b8cbd4;
+  --header-bg: #172b3a; --header-color: #e6eef0; --header-branding-color: #e6eef0; --header-link-color: #c3d7e2;
+  --breadcrumbs-bg: #203b50; --breadcrumbs-fg: #b8cbd4; --breadcrumbs-link-fg: #c3d7e2;
+  --hairline-color: #345368; --border-color: #47677a; --darkened-bg: #203b50; --selected-bg: #34566e; --selected-row: #294b62;
+  --link-fg: #c3d7e2; --link-hover-color: #e6eef0; --link-selected-fg: #e6eef0;
+  --button-bg: #34566e; --button-hover-bg: #466e88; --default-button-bg: #34566e; --default-button-hover-bg: #466e88;
+  --album-panel: #203b50; --album-soft: #294b62;
 }
 @media (prefers-color-scheme: dark) {
   html[data-theme="auto"] {
-    --font-family-primary: var(--font-ui); --primary: #849575; --secondary: #647956; --accent: #d9cba8;
-    --body-bg: #20271f; --body-fg: #e4e8de; --body-loud-color: #f4f3eb; --body-quiet-color: #b5bfa9;
-    --header-bg: #20271f; --header-color: #e4e8de; --header-branding-color: #e4e8de; --header-link-color: #c3d1b5;
-    --breadcrumbs-bg: #293328; --breadcrumbs-fg: #b5bfa9; --breadcrumbs-link-fg: #c3d1b5;
-    --hairline-color: #354132; --border-color: #41503b; --darkened-bg: #293328; --selected-bg: #3c4a36; --selected-row: #34402f;
-    --link-fg: #bbcca8; --link-hover-color: #d7e0cd; --link-selected-fg: #d7e0cd;
-    --button-bg: #647956; --button-hover-bg: #748d62; --default-button-bg: #647956; --default-button-hover-bg: #748d62;
-    --album-panel: #293328; --album-soft: #34402f;
+    --font-family-primary: var(--font-ui); --primary: #91b3c4; --secondary: #34566e; --accent: #e3d3b8;
+    --body-bg: #172b3a; --body-fg: #e6eef0; --body-loud-color: #fffdf8; --body-quiet-color: #b8cbd4;
+    --header-bg: #172b3a; --header-color: #e6eef0; --header-branding-color: #e6eef0; --header-link-color: #c3d7e2;
+    --breadcrumbs-bg: #203b50; --breadcrumbs-fg: #b8cbd4; --breadcrumbs-link-fg: #c3d7e2;
+    --hairline-color: #345368; --border-color: #47677a; --darkened-bg: #203b50; --selected-bg: #34566e; --selected-row: #294b62;
+    --link-fg: #c3d7e2; --link-hover-color: #e6eef0; --link-selected-fg: #e6eef0;
+    --button-bg: #34566e; --button-hover-bg: #466e88; --default-button-bg: #34566e; --default-button-hover-bg: #466e88;
+    --album-panel: #203b50; --album-soft: #294b62;
   }
 }
 body { font-family: var(--font-ui); font-size: 13px; -webkit-font-smoothing: antialiased; }
 button, input, textarea, select { font-family: var(--font-ui); }
-:focus-visible { outline: 3px solid #94765e; outline-offset: 3px; }
+:focus-visible { outline: 3px solid #a77450; outline-offset: 3px; }
 #header { padding: 24px 40px; border-bottom: 1px solid var(--border-color); }
 .album-admin-brand { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .album-admin-brand > a { display: inline-flex; gap: 10px; align-items: center; color: var(--body-fg) !important; font-size: 20px; font-weight: 600; letter-spacing: -.6px; text-decoration: none; }
 .album-admin-brand img { border-radius: 10px; }
-.admin-brand-dot { color: #b7836c; }
+.admin-brand-dot { color: #8b5e45; }
 .admin-brand-label { padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 7px; color: var(--body-quiet-color); font-size: 10px; font-weight: 500; }
 #user-tools { font-size: 11px; line-height: 1.8; text-transform: none; letter-spacing: 0; }
 #user-tools a, #user-tools button { border: 0; font-size: 11px; }
@@ -123,3 +123,6 @@ input[type="text"], input[type="password"], input[type="email"], input[type="url
   .storage-intro input[type="submit"] { white-space: normal; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+#content > h1 { font-family: var(--font-display); font-weight: 400; letter-spacing: -.025em; }
+::selection { background: #c8d8de; color: #173346; }
